@@ -156,7 +156,7 @@ Example:
 | `firefox-cli find role|text|label|placeholder|alt|title|testid <value> [--first\|--last\|--nth n] [--json]` | Find elements by semantic locator. |
 | `firefox-cli frame [--json]` | List iframe diagnostics visible from the main frame. |
 | `firefox-cli download <url> [filename] [--save-as] [--json]` | Start a Firefox download. |
-| `firefox-cli dialog status|accept|dismiss [--json]` | Report dialog command status. Native modal accept/dismiss is unavailable through content scripts. |
+| `firefox-cli dialog status\|accept\|dismiss [--json]` | Report dialog command status. Native modal accept/dismiss is unavailable through content scripts. |
 | `firefox-cli clipboard read|write|copy|paste [text-or-selector] [--json]` | Read/write clipboard text or copy/paste element text. |
 | `firefox-cli cookies list|get|set|remove <url> [name] [value] [--json]` | Manage cookies for a URL. |
 | `firefox-cli storage local|session get|set|remove|clear [key] [value] [--json]` | Manage page local/session storage. |

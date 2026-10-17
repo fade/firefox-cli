@@ -17,7 +17,7 @@ Agent-browser family compatibility summary:
 | Capture: `screenshot` | MVP for visible-tab PNG/JPEG. Full-page/PDF/video are unsupported or deferred. |
 | Eval and batch: `eval`, `batch` | MVP |
 | Dialogs, downloads, clipboard, cookies, storage, network list/clear | MVP with Firefox/WebExtension limits. HAR is unsupported. |
-| Debug/repro: console/errors, `highlight`, diff, trace/profiler, vitals | MVP for listed commands. Other items are deferred as listed below. |
+| Debug/repro: console/errors, `highlight`, diff | MVP. Profiling, tracing, and vitals are deferred below. |
 | Auth/state/session/profile/security gates/content boundaries | Deferred or unsupported in MVP because this controls the existing Firefox session after pairing |
 | Chrome/CDP/provider/browser-install features: CDP attach, `get cdp-url`, `inspect`, `--extension`, external providers, iOS, Chrome profile import, browser install/upgrade | Unsupported unless Firefox provides an equivalent |
 

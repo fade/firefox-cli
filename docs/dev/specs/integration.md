@@ -25,7 +25,7 @@ The system has four layers:
 
 Use the same executable for CLI mode and native-host mode. Firefox launches the binary from the native messaging manifest. Native-host mode detection must be deterministic: expected native messaging argv shape, manifest path/name, extension ID, and native framing on stdin/stdout. Normal user invocations run CLI mode only when those native-host signals are absent. Host mode must reserve stdout for native messaging frames and write logs to stderr or files.
 
-The default command target is the active tab in the active Firefox window. Target selection uses Firefox's active state without hidden CLI sessions.
+Commands use Firefox's active tab or window only when the targeting rules permit omitted selectors. Ambiguous targets require explicit selectors. Target selection uses Firefox's active state without hidden CLI sessions.
 
 ## Transport
 

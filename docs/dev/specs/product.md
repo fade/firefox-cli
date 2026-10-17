@@ -23,7 +23,7 @@ The happy path:
 2. User manually installs or temporarily loads the Firefox extension from the URL printed by `firefox-cli setup`.
 3. User runs `firefox-cli setup native-host` or `firefox-cli doctor --fix` to register the native messaging host.
 4. User runs `firefox-cli connect` and responds to the Firefox approval request, or opens the extension popup and approves the first connection.
-5. Commands control the active Firefox tab/window unless a command or flag selects another target.
+5. Commands use the active Firefox tab or window only when the targeting rules permit omitted selectors. Ambiguous targets require explicit selectors.
 
 Example workflow:
 
