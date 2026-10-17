@@ -122,8 +122,8 @@ export function restoreWindowLogCapture(view: Window | null): void {
 function installConsolePatch(state: LogCaptureState): ConsolePatch {
   const targetConsole = globalThis.console;
   const patched = CONSOLE_LEVELS.map((level) => {
-    const original = targetConsole[level];
-    const originalCall = original.bind(targetConsole);
+    const originalDescriptor = Object.getOwnPropertyDescriptor(targetConsole, level);
+    const originalCall = targetConsole[level].bind(targetConsole);
     const wrapper = (...args: unknown[]) => {
       state.consoleEntries.push({
         level,
@@ -133,14 +133,18 @@ function installConsolePatch(state: LogCaptureState): ConsolePatch {
       originalCall(...args);
     };
     targetConsole[level] = wrapper;
-    return { level, original, wrapper };
+    return { level, originalDescriptor, wrapper };
   });
 
   return {
     restore: () => {
-      for (const { level, original, wrapper } of patched) {
+      for (const { level, originalDescriptor, wrapper } of patched) {
         if (targetConsole[level] === wrapper) {
-          targetConsole[level] = original;
+          if (originalDescriptor === undefined) {
+            Reflect.deleteProperty(targetConsole, level);
+          } else {
+            Object.defineProperty(targetConsole, level, originalDescriptor);
+          }
         }
       }
     },

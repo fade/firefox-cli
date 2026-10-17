@@ -23,7 +23,7 @@
         "zod"
       ]
     },
-    "@firefox-cli/cli": { "dependencies": ["@firefox-cli/native-host", "@firefox-cli/protocol"] },
+    "@firefox-cli/cli": { "dependencies": ["@firefox-cli/native-host", "@firefox-cli/protocol", "mime"] },
     "@firefox-cli/extension": { "dependencies": ["@firefox-cli/protocol"] },
     "@firefox-cli/native-host": {},
     "@firefox-cli/protocol": {},

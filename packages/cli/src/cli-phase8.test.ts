@@ -6,7 +6,113 @@ import { describe, expect, it } from "vitest";
 import { runCli } from "./index.js";
 import { baseDependencies, phase8CliResultFor } from "./cli-test-support.js";
 
+async function uploadRequestFor(filename: string): Promise<RequestEnvelope> {
+  const cwd = await createTempDir("firefox-cli-upload-mime");
+  await writeFile(join(cwd, filename), "upload body");
+  const requests: RequestEnvelope[] = [];
+  const output = await runCli(["upload", "#file", filename, "--json"], {
+    ...baseDependencies(),
+    platform: process.platform,
+    cwd,
+    sendRequest: async (request) => {
+      requests.push(request);
+      return {
+        protocolVersion: request.protocolVersion,
+        id: request.id,
+        ok: true,
+        result: phase8CliResultFor(request),
+      };
+    },
+  });
+
+  expect(output.exitCode).toBe(0);
+  expect(requests).toHaveLength(1);
+  const request = requests[0];
+  if (request === undefined) {
+    throw new Error("Expected upload request.");
+  }
+  return request;
+}
+
 describe("runCli Phase 8 commands", () => {
+  it("sends the inferred MIME type for PNG uploads", async () => {
+    expect(await uploadRequestFor("fixture.png")).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture.png", mimeType: "image/png" }],
+      },
+    });
+  });
+
+  it("sends the inferred MIME type for JPEG uploads", async () => {
+    expect(await uploadRequestFor("fixture.jpeg")).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture.jpeg", mimeType: "image/jpeg" }],
+      },
+    });
+  });
+
+  it("sends the inferred MIME type for JPG uploads", async () => {
+    expect(await uploadRequestFor("fixture.jpg")).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture.jpg", mimeType: "image/jpeg" }],
+      },
+    });
+  });
+
+  it("sends the inferred MIME type for BMP uploads", async () => {
+    expect(await uploadRequestFor("fixture.bmp")).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture.bmp", mimeType: "image/bmp" }],
+      },
+    });
+  });
+
+  it("infers MIME types from uppercase extensions", async () => {
+    expect(await uploadRequestFor("fixture.PNG")).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture.PNG", mimeType: "image/png" }],
+      },
+    });
+  });
+
+  it("leaves unknown file extensions untyped", async () => {
+    const request = await uploadRequestFor("fixture.firefox-cli-unknown");
+    expect(request).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture.firefox-cli-unknown", dataBase64: "dXBsb2FkIGJvZHk=" }],
+      },
+    });
+    expect(request).not.toHaveProperty("params.files.0.mimeType");
+  });
+
+  it("leaves extensionless files untyped", async () => {
+    const request = await uploadRequestFor("fixture");
+    expect(request).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "fixture", dataBase64: "dXBsb2FkIGJvZHk=" }],
+      },
+    });
+    expect(request).not.toHaveProperty("params.files.0.mimeType");
+  });
+
+  it("does not treat a bare extension name as a file extension", async () => {
+    const request = await uploadRequestFor("png");
+    expect(request).toMatchObject({
+      command: "upload",
+      params: {
+        files: [{ name: "png", dataBase64: "dXBsb2FkIGJvZHk=" }],
+      },
+    });
+    expect(request).not.toHaveProperty("params.files.0.mimeType");
+  });
+
   it("sends Phase 8 command families through protocol requests", async () => {
     const cwd = await createTempDir("firefox-cli-phase8-cli");
     await writeFile(join(cwd, "fixture.txt"), "upload body");
@@ -34,7 +140,7 @@ describe("runCli Phase 8 commands", () => {
           command: "upload",
           params: {
             selector: "#file",
-            files: [{ name: "fixture.txt", dataBase64: "dXBsb2FkIGJvZHk=" }],
+            files: [{ name: "fixture.txt", mimeType: "text/plain", dataBase64: "dXBsb2FkIGJvZHk=" }],
           },
         },
       },

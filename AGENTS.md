@@ -39,6 +39,7 @@ Use package boundaries that assign ownership to the CLI, native host, extension,
 - `packages/test-support`: fixtures, fake transports, browser API mocks, and cross-package test helpers.
 - `scripts`: repository automation for package assembly, extension bundling/signing, native-messaging manifest checks, release verification, and dependency policy.
 - `docs`: user-facing setup, command reference, development, architecture, and capability notes.
+- `docs/dev/specs`: the sole location for product specifications, split by topic.
 
 Import workspace packages through their public package exports. Do not deep-import another package's `src` internals.
 
@@ -66,7 +67,7 @@ These ownership boundaries assign responsibilities:
 
 Validate every message crossing process, native-messaging, local IPC, browser, extension, or content-script boundaries at runtime. TypeScript types alone are not sufficient for boundary data.
 
-Use Firefox native messaging as the extension-to-native transport and per-user local IPC as the CLI-to-native transport. Keep native messaging and local IPC details behind interfaces so command handlers stay transport-agnostic.
+Use Firefox native messaging from the extension to the native host. Use per-user local IPC from the CLI to the native host. Keep transport details behind interfaces so command handlers stay transport-agnostic.
 
 Target resolution belongs in the extension. Resolve default commands against Firefox's active tab/window at command time. Use the indexes printed by `tab`/`window`, and resolve `id:<number>` as Firefox IDs.
 
@@ -117,7 +118,7 @@ The CLI cannot inspect or mutate the active Firefox session without extension co
 
 Users can have mismatched CLI and extension versions. Include explicit protocol version checks before adding behavior that assumes both sides upgraded together.
 
-Firefox WebExtensions lack Chrome CDP/debugger parity. Implement browser control through Firefox extension APIs and content scripts, and return explicit unsupported-capability errors for Chrome-only commands.
+Firefox WebExtensions lack Chrome CDP/debugger parity. Implement browser control through Firefox extension APIs and content scripts. Return explicit unsupported-capability errors for Chrome-only commands.
 
 Private windows are readable for listings and diagnostics, but mutating commands must be rejected unless the command is explicitly designed and permitted for private browsing.
 

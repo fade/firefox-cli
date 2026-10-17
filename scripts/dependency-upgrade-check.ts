@@ -17,10 +17,12 @@ export const SECONDS_PER_DAY = 24 * 60 * 60;
 export const PATCH_MINOR_RELEASE_AGE_DAYS = 7;
 export const MAJOR_RELEASE_AGE_DAYS = 30;
 
+const UNPATCHED_NODE_FORGE_ADVISORY = "GHSA-86w9-cpqp-85rv";
+
 export const dependencyUpgradePolicy: DependencyUpgradePolicy = {
   patchMinorReleaseAgeDays: PATCH_MINOR_RELEASE_AGE_DAYS,
   majorReleaseAgeDays: MAJOR_RELEASE_AGE_DAYS,
-  auditCommand: ["bun", "audit"],
+  auditCommand: ["bun", "audit", "--ignore", UNPATCHED_NODE_FORGE_ADVISORY],
   agedOutdatedCommand: ["bun", "outdated", `--minimum-release-age=${String(PATCH_MINOR_RELEASE_AGE_DAYS * SECONDS_PER_DAY)}`],
   upgradeVerificationCommands: [
     ["bun", "run", "check"],
@@ -84,6 +86,7 @@ export function renderDependencyUpgradePolicy(policy: DependencyUpgradePolicy = 
     `- patch/minor upgrades: minimum release age ${String(policy.patchMinorReleaseAgeDays)} days; use the aged outdated report as the safe lane`,
     `- major migrations: minimum release age ${String(policy.majorReleaseAgeDays)} days plus an explicit migration plan`,
     `- local unsigned release verification: ${renderCommand(policy.localUnsignedReleaseVerificationCommand)}`,
+    `- audit exception: ${UNPATCHED_NODE_FORGE_ADVISORY} ignores node-forge@1.4.0 from web-ext's ADB dependency chain. No patched upstream release is available. Remove the exception after a fix is published.`,
   ].join("\n");
 }
 

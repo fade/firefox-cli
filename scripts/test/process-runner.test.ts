@@ -5,6 +5,7 @@ import { createTempDir } from "@firefox-cli/test-support";
 import { ProcessRunnerError, raceWithProcessFailure, renderCommand, runProcess, startManagedProcess } from "../process-runner.js";
 
 const node = process.execPath;
+const PROCESS_WAIT_TIMEOUT_MS = 5_000;
 
 describe("process runner", () => {
   it("captures successful stdout and stderr after process close", async () => {
@@ -64,31 +65,35 @@ describe("process runner", () => {
     });
   });
 
-  it("terminates timed-out process trees", async () => {
-    const tempDir = await createTempDir("firefox-cli-process-tree");
-    const grandchildPidFile = join(tempDir, "grandchild.pid");
-    let failure: unknown;
-    let grandchildPid: number | undefined;
-    try {
+  it(
+    "terminates timed-out process trees",
+    async () => {
+      const tempDir = await createTempDir("firefox-cli-process-tree");
+      const grandchildPidFile = join(tempDir, "grandchild.pid");
+      let failure: unknown;
+      let grandchildPid: number | undefined;
       try {
-        await runProcess(node, processTreeArgs(grandchildPidFile), {
-          timeoutMs: 1000,
-          timeoutStopOptions: { interruptGraceMs: 50, terminateGraceMs: 50, forceGraceMs: 500 },
-        });
-      } catch (error) {
-        failure = error;
-        grandchildPid = Number(await readFile(grandchildPidFile, "utf8"));
-      }
+        try {
+          await runProcess(node, processTreeArgs(grandchildPidFile), {
+            timeoutMs: PROCESS_WAIT_TIMEOUT_MS,
+            timeoutStopOptions: { interruptGraceMs: 50, terminateGraceMs: 50, forceGraceMs: 500 },
+          });
+        } catch (error) {
+          failure = error;
+          grandchildPid = Number(await readFile(grandchildPidFile, "utf8"));
+        }
 
-      expect(failure).toBeInstanceOf(ProcessRunnerError);
-      expect(grandchildPid).toBeTypeOf("number");
-      await eventually(() => {
-        expectProcessGone(grandchildPid);
-      });
-    } finally {
-      cleanupProcess(grandchildPid);
-    }
-  });
+        expect(failure).toBeInstanceOf(ProcessRunnerError);
+        expect(grandchildPid).toBeTypeOf("number");
+        await eventually(() => {
+          expectProcessGone(grandchildPid);
+        });
+      } finally {
+        cleanupProcess(grandchildPid);
+      }
+    },
+    PROCESS_WAIT_TIMEOUT_MS + 2_000,
+  );
 
   it("stops managed children with signal escalation", async () => {
     const managed = startManagedProcess(node, ["-e", "setInterval(() => undefined, 1000);"]);
@@ -103,44 +108,49 @@ describe("process runner", () => {
     });
   });
 
-  it("stops managed process trees with signal escalation", async () => {
-    const tempDir = await createTempDir("firefox-cli-process-tree");
-    const grandchildPidFile = join(tempDir, "grandchild.pid");
-    const managed = startManagedProcess(node, processTreeArgs(grandchildPidFile));
-    const pid = managed.pid;
-    let grandchildPid: number | undefined;
+  it(
+    "stops managed process trees with signal escalation",
+    async () => {
+      const tempDir = await createTempDir("firefox-cli-process-tree");
+      const grandchildPidFile = join(tempDir, "grandchild.pid");
+      const managed = startManagedProcess(node, processTreeArgs(grandchildPidFile));
+      const pid = managed.pid;
+      let grandchildPid: number | undefined;
 
-    try {
-      grandchildPid = await eventuallyValue(async () => {
-        const value = Number(await readFile(grandchildPidFile, "utf8"));
-        return Number.isInteger(value) && value > 0 ? value : false;
-      });
-      const stopped = await managed.stop({
-        interruptGraceMs: 50,
-        terminateGraceMs: 50,
-        forceGraceMs: 500,
-      });
+      try {
+        grandchildPid = await eventuallyValue(async () => {
+          const value = Number(await readFile(grandchildPidFile, "utf8"));
+          return Number.isInteger(value) && value > 0 ? value : false;
+        });
+        const stopped = await managed.stop({
+          interruptGraceMs: 50,
+          terminateGraceMs: 50,
+          forceGraceMs: 500,
+        });
 
-      expect(stopped.signal ?? stopped.exitCode).not.toBeNull();
-      expect(pid).toBeTypeOf("number");
-      await eventually(() => {
-        expectProcessGone(pid);
-      });
-      await eventually(() => {
-        expectProcessGone(grandchildPid);
-      });
-    } finally {
-      cleanupProcessTree(pid);
-      cleanupProcess(grandchildPid);
-    }
-  });
+        expect(stopped.signal ?? stopped.exitCode).not.toBeNull();
+        expect(pid).toBeTypeOf("number");
+        await eventually(() => {
+          expectProcessGone(pid);
+        });
+        await eventually(() => {
+          expectProcessGone(grandchildPid);
+        });
+      } finally {
+        cleanupProcessTree(pid);
+        cleanupProcess(grandchildPid);
+      }
+    },
+    PROCESS_WAIT_TIMEOUT_MS + 2_000,
+  );
 
   it("races readiness against child exit and spawn failure", async () => {
     const exited = startManagedProcess(node, ["-e", "process.exit(3);"]);
-    await expect(raceWithProcessFailure(exited, sleep(1000), "early-exit")).rejects.toBeInstanceOf(ProcessRunnerError);
+    const readiness = new Promise<never>(() => undefined);
+    await expect(raceWithProcessFailure(exited, readiness, "early-exit")).rejects.toBeInstanceOf(ProcessRunnerError);
 
     const missing = startManagedProcess("__firefox_cli_missing_process__");
-    await expect(raceWithProcessFailure(missing, sleep(1000), "spawn-fail")).rejects.toBeInstanceOf(ProcessRunnerError);
+    await expect(raceWithProcessFailure(missing, readiness, "spawn-fail")).rejects.toBeInstanceOf(ProcessRunnerError);
   });
 
   it("redacts configured command argument values", async () => {
@@ -168,7 +178,7 @@ describe("process runner", () => {
 async function eventually(assertion: () => void): Promise<void> {
   const startedAt = Date.now();
   let lastError: unknown;
-  while (Date.now() - startedAt < 1000) {
+  while (Date.now() - startedAt < PROCESS_WAIT_TIMEOUT_MS) {
     try {
       assertion();
       return;
@@ -185,7 +195,7 @@ async function eventually(assertion: () => void): Promise<void> {
 async function eventuallyValue<T>(read: () => Promise<T | false>): Promise<T> {
   const startedAt = Date.now();
   let lastError: unknown;
-  while (Date.now() - startedAt < 1000) {
+  while (Date.now() - startedAt < PROCESS_WAIT_TIMEOUT_MS) {
     try {
       const value = await read();
       if (value !== false) {

@@ -9,14 +9,14 @@ describe("runCli batch upload and validation", () => {
       [
         "batch",
         JSON.stringify([
-          ["upload", "#one", "one.bin"],
+          ["upload", "#one", "one.bin", "mystery.firefox-cli-unknown"],
           ["upload", "#two", "two.bin"],
         ]),
       ],
       {
         ...baseDependencies(),
         statUploadFile: async () => ({ size: 3, isFile: true }),
-        readUploadFile: async (path) => Buffer.from(path.endsWith("one.bin") ? "one" : "two"),
+        readUploadFile: async (path) => Buffer.from(path.endsWith("one.bin") ? "one" : path.endsWith("two.bin") ? "two" : "bad"),
         sendRequest: async (request) => {
           expect(request).toMatchObject({
             command: "batch",
@@ -26,14 +26,17 @@ describe("runCli batch upload and validation", () => {
                   command: "upload",
                   params: {
                     selector: "#one",
-                    files: [{ name: "one.bin", dataBase64: "b25l" }],
+                    files: [
+                      { name: "one.bin", mimeType: "application/octet-stream", dataBase64: "b25l" },
+                      { name: "mystery.firefox-cli-unknown", dataBase64: "YmFk" },
+                    ],
                   },
                 },
                 {
                   command: "upload",
                   params: {
                     selector: "#two",
-                    files: [{ name: "two.bin", dataBase64: "dHdv" }],
+                    files: [{ name: "two.bin", mimeType: "application/octet-stream", dataBase64: "dHdv" }],
                   },
                 },
               ],

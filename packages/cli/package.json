@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@firefox-cli/native-host": "workspace:*",
-    "@firefox-cli/protocol": "workspace:*"
+    "@firefox-cli/protocol": "workspace:*",
+    "mime": "4.1.0"
   },
   "scripts": {
     "format": "biome format .",
