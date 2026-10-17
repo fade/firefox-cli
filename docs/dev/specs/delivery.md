@@ -1,6 +1,6 @@
 ## Testing
 
-Use Vitest for unit and boundary tests. Use the [manual command QA checklist](all-commands-qa.md) for full browser interaction checks.
+Use Vitest for unit and boundary tests. Use the [manual command QA checklist](../../all-commands-qa.md) for full browser interaction checks.
 
 Required test layers:
 

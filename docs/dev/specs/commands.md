@@ -49,7 +49,7 @@ MVP:
 - State checks: `is visible`, `is enabled`, `is checked`.
 - Waits: `wait <selector|ref|ms>`, `wait --text`, `wait --url`, `wait --fn`, `wait --state hidden`, `wait --load domcontentloaded|complete`.
 - Tabs/windows: `tab`, `tab new`, `tab close`, `tab select`, `window`, `window new`, `window close`, `window select`. The relevant commands support `--focus` for window foregrounding.
-- Screenshots: visible-tab `screenshot [path]`; `--focus` requests window foregrounding.
+- Screenshots: `screenshot [path]` captures the visible tab. `--focus` requests window foregrounding.
 - Eval: `eval <js>`, `eval --stdin`, `eval -b <base64>`.
 - Batch: `batch` with JSON input and `--bail`.
 
