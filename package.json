@@ -27,7 +27,7 @@
     "version:check": "bun scripts/sync-version.ts --check",
     "release:prepare-version": "bun scripts/prepare-release-version.ts",
     "lint:biome": "biome lint .",
-    "lint:eslint": "eslint .",
+    "lint:eslint": "node --max-old-space-size=4096 ./node_modules/eslint/bin/eslint.js .",
     "lint": "bun run deps:policy && bun run ts:policy && bun run lint:biome && bun run lint:eslint",
     "source:size": "bun scripts/source-size-check.ts",
     "tsc": "node ./node_modules/@typescript/native/bin/tsc",
