@@ -82,13 +82,14 @@ async function setupNativeHost(args: readonly string[], dependencies: CliDepende
 
 export async function doctor(args: readonly string[], dependencies: CliDependencies): Promise<CliResult> {
   const plan = await createManifestPlan(dependencies);
-  const setup = await resolveDoctorSetupStatus(plan, dependencies, args.includes("--fix"));
+  const json = args.includes("--json");
+  const setup = await resolveDoctorSetupStatus(plan, dependencies, args.includes("--fix"), json);
   if (!setup.ok) {
     return setup.result;
   }
 
   const connection = await checkExtensionConnection(dependencies);
-  return args.includes("--json") ? formatDoctorJson(setup.status, connection) : formatDoctorText(plan.manifestPath, setup.status, connection);
+  return json ? formatDoctorJson(setup.status, connection) : formatDoctorText(plan.manifestPath, setup.status, connection);
 }
 
 interface DoctorSetupStatus {
@@ -102,20 +103,25 @@ async function resolveDoctorSetupStatus(
   plan: Awaited<ReturnType<typeof createManifestPlan>>,
   dependencies: CliDependencies,
   fix: boolean,
+  json: boolean,
 ): Promise<DoctorSetupStatusResult> {
-  const current = await readDoctorSetupStatus(plan, dependencies);
+  const current = await readDoctorSetupStatus(plan, dependencies, json);
   if (!current.ok || !fix || !requiresDoctorRepair(current.status)) {
     return current;
   }
 
-  const failure = await registerNativeHost(plan, dependencies, "firefox-cli doctor --fix");
+  const failure = await registerNativeHost(plan, dependencies, "firefox-cli doctor --fix", json);
   if (failure !== undefined) {
     return { ok: false, result: failure };
   }
-  return readDoctorSetupStatus(plan, dependencies);
+  return readDoctorSetupStatus(plan, dependencies, json);
 }
 
-async function readDoctorSetupStatus(plan: Awaited<ReturnType<typeof createManifestPlan>>, dependencies: CliDependencies): Promise<DoctorSetupStatusResult> {
+async function readDoctorSetupStatus(
+  plan: Awaited<ReturnType<typeof createManifestPlan>>,
+  dependencies: CliDependencies,
+  json: boolean,
+): Promise<DoctorSetupStatusResult> {
   const nativeHostManifest = await readNativeHostManifestStatus(plan);
   try {
     const nativeHostRegistration = await readWindowsNativeHostRegistration(plan, dependencies);
@@ -129,7 +135,7 @@ async function readDoctorSetupStatus(plan: Awaited<ReturnType<typeof createManif
   } catch (error) {
     return {
       ok: false,
-      result: nativeHostRegistrationFailure(error, "firefox-cli doctor --fix"),
+      result: nativeHostRegistrationFailure(error, "firefox-cli doctor --fix", json),
     };
   }
 }
@@ -162,6 +168,7 @@ function formatDoctorText(manifestPath: string, status: DoctorSetupStatus, conne
       `Path: ${manifestPath}`,
       manifest.status === "stale" ? `Installed path: ${manifest.installedPath}` : undefined,
       manifest.status === "invalid" ? `Validation error: ${manifest.reason}` : undefined,
+      manifest.status === "unreadable" ? `Manifest inspection error: ${manifest.reason}` : undefined,
       ...formatWindowsRegistrationText(status.nativeHostRegistration),
       `Extension connection: ${connection.status}`,
       "nextAction" in manifest ? `Next action: ${manifest.nextAction}` : undefined,
@@ -237,6 +244,12 @@ async function readNativeHostManifestStatus(plan: Awaited<ReturnType<typeof crea
       readonly reason: string;
       readonly nextAction: string;
     }
+  | {
+      readonly status: "unreadable";
+      readonly path: string;
+      readonly reason: string;
+      readonly nextAction: string;
+    }
 > {
   let content: string;
   try {
@@ -249,7 +262,12 @@ async function readNativeHostManifestStatus(plan: Awaited<ReturnType<typeof crea
         nextAction: "Run `firefox-cli setup`.",
       };
     }
-    throw error;
+    return {
+      status: "unreadable",
+      path: plan.manifestPath,
+      reason: error instanceof Error ? error.message : String(error),
+      nextAction: "Check the manifest path and permissions, then run `firefox-cli doctor --fix`.",
+    };
   }
 
   let installed: typeof plan.manifest;

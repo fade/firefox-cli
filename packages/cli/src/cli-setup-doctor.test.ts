@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { posix } from "node:path";
 import { createErrorResponse } from "@firefox-cli/protocol";
 import { createTempDir } from "@firefox-cli/test-support";
@@ -234,6 +234,26 @@ describe("runCli setup and doctor", () => {
       },
     });
     await expect(readFile(manifestPath, "utf8")).resolves.toContain(binaryPath);
+  });
+
+  it("diagnoses and handles an unreadable manifest path during doctor", async () => {
+    const homeDir = await createTempDir("firefox-cli-doctor-manifest-directory"),
+      manifestPath = darwinManifestPath(homeDir);
+    await mkdir(manifestPath, { recursive: true });
+    const dependencies = { ...baseDependencies(), homeDir };
+    const diagnosed = await runCli(["doctor"], dependencies);
+    const diagnosedJson = await runCli(["doctor", "--json"], dependencies);
+    const repair = await runCli(["doctor", "--fix"], dependencies);
+    const repairJson = await runCli(["doctor", "--fix", "--json"], dependencies);
+    const nextAction = "Check the manifest path and permissions, then run `firefox-cli doctor --fix`.";
+
+    expect(diagnosed.exitCode === 1 && diagnosed.stderr === "" && /Path: .*\nManifest inspection error: .*EISDIR/i.test(diagnosed.stdout)).toBe(true);
+    expect([diagnosedJson, repairJson].every(({ exitCode, stderr }) => exitCode === 1 && stderr === "")).toBe(true);
+    expect(JSON.parse(diagnosedJson.stdout)).toMatchObject({ nativeHostManifest: { status: "unreadable", path: manifestPath, nextAction } });
+    expect(repair).toMatchObject({ exitCode: 1, stdout: "" });
+    expect(repair.stderr).toMatch(/Failed while writing.*Path: .*EISDIR.*Check that the manifest path is not a directory/s);
+    expect(JSON.parse(repairJson.stdout)).toMatchObject({ error: { step: "manifest", manifestPath, diagnostic: "Atomic file write failed." } });
+    expect(repairJson.stdout).toContain("EISDIR");
   });
 
   it("does not treat wrong-shape or non-canonical native-host manifests as installed", async () => {

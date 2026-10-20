@@ -264,11 +264,10 @@ describe("runCli setup registration", () => {
     });
 
     expect(output.exitCode).toBe(1);
-    expect(output.stdout).toBe("");
-    expect(output.stderr).toContain("Failed while reading the Windows registry entry.");
-    expect(output.stderr).toContain("Diagnostic: Registry inspection failed.");
-    expect(output.stderr).toContain("Windows PowerShell stderr: PowerShell could not read the key.");
-    expect(output.stderr).toContain("firefox-cli doctor --fix");
+    expect(output.stderr).toBe("");
+    expect(JSON.parse(output.stdout)).toMatchObject({ error: { step: "windows-registry-read", diagnostic: "Registry inspection failed." } });
+    expect(output.stdout).toContain("PowerShell could not read the key.");
+    expect(output.stdout).toContain("firefox-cli doctor --fix");
     expect(registry.writeCalls).toBe(0);
   });
 
@@ -290,12 +289,10 @@ describe("runCli setup registration", () => {
     });
 
     expect(failure.exitCode).toBe(1);
-    expect(failure.stdout).toBe("");
-    expect(failure.stderr).toContain("Failed while updating the Windows registry entry.");
-    expect(failure.stderr).toContain("Diagnostic: Access is denied.");
-    expect(failure.stderr).toContain("Windows PowerShell stderr: Windows registry write failed.");
-    expect(failure.stderr).toContain("elevated terminal");
-    expect(failure.stderr).toContain("firefox-cli doctor --fix");
+    expect(failure.stderr).toBe("");
+    expect(JSON.parse(failure.stdout)).toMatchObject({ error: { step: "windows-registry-write", diagnostic: "Access is denied." } });
+    expect(failure.stdout).toContain("Windows registry write failed.");
+    expect(failure.stdout).toContain("elevated terminal");
     expect(registry.value).toBeUndefined();
     expect(registry.writeCalls).toBe(1);
     await expect(readFile(join(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
