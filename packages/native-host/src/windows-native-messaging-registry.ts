@@ -33,7 +33,7 @@ const powerShellCommand = [
   "  } else {",
   "    throw 'Unsupported Firefox native messaging registry operation.'",
   "  }",
-  "  if ($request.PSObject.Properties.Count -ne $requiredProperties.Count) { throw 'Registry request has an invalid field set.' }",
+  "  if (@($request.PSObject.Properties).Count -ne $requiredProperties.Count) { throw 'Registry request has an invalid field set.' }",
   "  foreach ($propertyName in $requiredProperties) {",
   "    if ($null -eq $request.PSObject.Properties[$propertyName]) { throw 'Registry request is missing a required field.' }",
   "  }",
