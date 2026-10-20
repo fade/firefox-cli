@@ -169,17 +169,11 @@ jobs:
         with:
           name: firefox-cli-signed-extension
           path: release-artifacts/signed-extension
-      - name: Generate Changelog
-        uses: mikepenz/release-changelog-builder-action@v6
-        id: build_changelog
-        with:
-          commitMode: true
-          configuration: ".github/changelog_config.json"
       - uses: ncipollo/release-action@v1.21.0
         with:
           artifactErrorsFailBuild: true
           artifacts: "release-artifacts/**/*.tar.gz,release-artifacts/**/*.zip,release-artifacts/signed-extension/*.xpi,release-artifacts/signed-extension/*.xpi.provenance.json"
-          body: ${{ steps.build_changelog.outputs.changelog }}
+          bodyFile: release-notes/${{ github.ref_name }}.md
           draft: true
           prerelease: false
           tag: ${{ github.ref_name }}
