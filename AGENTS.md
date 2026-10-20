@@ -39,7 +39,7 @@ Use package boundaries that assign ownership to the CLI, native host, extension,
 - `packages/test-support`: fixtures, fake transports, browser API mocks, and cross-package test helpers.
 - `scripts`: repository automation for package assembly, extension bundling/signing, native-messaging manifest checks, release verification, and dependency policy.
 - `docs`: user-facing setup, command reference, development, architecture, and capability notes.
-- `docs/dev/specs`: the sole location for product specifications, split by topic.
+- `docs/dev/specs`: the sole location for product specifications, split by topic. Write product specifications only in simplified technical English. Use short sentences and familiar technical terms.
 
 Import workspace packages through their public package exports. Do not deep-import another package's `src` internals.
 

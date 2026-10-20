@@ -35,11 +35,9 @@ describe("dependency upgrade policy", () => {
     ]);
   });
 
-  it("reports the sole unpatched node-forge audit exception", () => {
-    expect(dependencyUpgradePolicy.auditCommand).toEqual(["bun", "audit", "--ignore", "GHSA-86w9-cpqp-85rv"]);
-    expect(renderDependencyUpgradePolicy()).toContain("GHSA-86w9-cpqp-85rv");
-    expect(renderDependencyUpgradePolicy()).toContain("node-forge@1.4.0");
-    expect(renderDependencyUpgradePolicy()).toContain("No patched upstream release is available");
+  it("runs the dependency audit without suppressing findings", () => {
+    expect(dependencyUpgradePolicy.auditCommand).toEqual(["bun", "audit"]);
+    expect(renderDependencyUpgradePolicy()).not.toContain("audit exception");
   });
 
   it("renders the verification commands required after upgrades", () => {
@@ -65,7 +63,7 @@ describe("dependency upgrade policy", () => {
     expect(calls).toEqual([
       {
         command: "bun",
-        args: ["audit", "--ignore", "GHSA-86w9-cpqp-85rv"],
+        args: ["audit"],
         label: "dependency audit",
       },
       {

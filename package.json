@@ -61,22 +61,23 @@
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
     "@eslint/js": "^10.0.1",
-    "@types/bun": "^1.4.2",
+    "@types/bun": "^1.4.3",
     "@types/jsdom": "^30.0.0",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "@typescript/native": "npm:typescript@^7.0.2",
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^30.0.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.1",
+    "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.1",
+    "vitest": "^5.0.4",
     "web-ext": "^10.7.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "overrides": {
     "js-yaml": "4.3.2",
+    "node-forge": "github:Krysthyan/forge#ceba34402e329f0365134f23fe19898756527d65",
     "shell-quote": "1.11.0",
     "undici": "7.29.1"
   }
