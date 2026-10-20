@@ -25,7 +25,6 @@ export {
   createNativeMessagingManifest,
   parseNativeMessagingManifestJson,
   planNativeMessagingManifest,
-  writeNativeMessagingManifest,
   nativeMessagingManifestSchema,
   type NativeMessagingManifest,
   type NativeMessagingManifestOptions,
@@ -33,6 +32,15 @@ export {
   type NativeMessagingManifestPlanOptions,
   type NativeMessagingManifestRegistration,
 } from "./native-manifest.js";
+export {
+  NativeMessagingRegistrationError,
+  readWindowsNativeMessagingHostRegistration,
+  registerNativeMessagingHost,
+  type NativeMessagingRegistrationOptions,
+  type WindowsNativeMessagingRegistration,
+  type WindowsNativeMessagingRegistry,
+} from "./native-registration.js";
+export { WindowsNativeMessagingRegistryError } from "./windows-native-messaging-registry.js";
 export {
   FileHostIdentityStore,
   FilePairStateStore,

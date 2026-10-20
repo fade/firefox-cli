@@ -189,15 +189,16 @@ const contextualGroupTopics: ReadonlyMap<string, HelpGroup> = new Map(
 const builtinHelpSpecs = new Map<string, HelpSpec>([
   [
     "setup",
-    helpSpec("Print extension installation guidance or register the native messaging host.", [
-      "`firefox-cli setup` prints the matching extension download URL and native-host setup command.",
-      "`firefox-cli setup native-host` writes the per-user native messaging manifest.",
+    helpSpec("Register the native host and print extension installation and connection-approval guidance.", [
+      "`firefox-cli setup` registers the per-user native host and prints the matching extension URL and approval steps.",
+      "`firefox-cli setup native-host` registers the host without extension guidance.",
+      "`--dry-run` previews registration without writes. It also works with `--json`.",
     ]),
   ],
   [
     "doctor",
     helpSpec("Diagnose or repair native-host registration and extension connection state.", [
-      "`--fix` writes or repairs the native-host manifest when possible.",
+      "`--fix` repairs the native-host manifest and Windows registry entry when needed.",
       "`--json` returns machine-readable setup state for automation.",
     ]),
   ],
@@ -275,7 +276,7 @@ export function renderHelp(): string {
     "  firefox-cli <command> -h",
     "",
     "Setup and diagnostics:",
-    "  firefox-cli setup [--json]                              - print extension/native-host setup guidance",
+    "  firefox-cli setup [--dry-run] [--json]                  - register the host, then print extension and approval guidance",
     "  firefox-cli setup native-host [--dry-run] [--json]      - register the Firefox native messaging host",
     "  firefox-cli doctor [--fix] [--json]                     - diagnose or repair setup",
     "  firefox-cli unpair                                      - reset native-host pairing state",
@@ -284,6 +285,7 @@ export function renderHelp(): string {
     "",
     "Guidance:",
     "  Use `--json` when another program or agent consumes results.",
+    "  Use `--dry-run` to preview setup registration without writes, including with `--json`.",
     "  Use `firefox-cli snapshot -i` before element actions to get stable `@ref` handles.",
     "  Use only the `--tab` and `--window` options advertised by each command; values are active, index, or id:<id>.",
     "  Omitted selectors are accepted only when the required window or tab is unique; pass `active` explicitly to choose Firefox's focused/active surface.",

@@ -10,21 +10,15 @@ Install the CLI package:
 npm install -g firefox-cli
 ```
 
-Print the extension download URL and native-host setup guidance:
+Register the native host and print the matching extension download URL and connection-approval instructions:
 
 ```sh
 firefox-cli setup
 ```
 
-Install the extension from the URL shown by `firefox-cli setup`. Open it in Firefox and accept the install prompt. The URL is selected from the update manifest for the matching CLI version.
+Install the extension from the URL shown by `firefox-cli setup`. Open it in Firefox and accept the install prompt. Use `firefox-cli setup --dry-run --json` for a write-free preview.
 
-Register the native messaging host:
-
-```sh
-firefox-cli setup native-host
-```
-
-Run `firefox-cli connect` and respond to the approval request in Firefox. The approval pairs the extension with the local native host and enables CLI requests from the machine.
+Run `firefox-cli connect` and approve the request in Firefox, or approve the first connection in the extension popup.
 
 Verify the installation:
 
@@ -32,7 +26,7 @@ Verify the installation:
 firefox-cli doctor
 ```
 
-`doctor` reports the native-host manifest state, extension connection state, approval state, and the next action when setup is incomplete.
+`doctor` reports the native-host manifest, Windows registry registration, extension connection state, and the next action when setup is incomplete. `doctor --fix` repairs missing or stale registration.
 
 ## Agent skill
 

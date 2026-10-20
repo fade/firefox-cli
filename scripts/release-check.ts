@@ -39,6 +39,7 @@ const setupNativeHostOutputSchema = z
   .object({
     manifestPath: z.string().min(1),
     manifest: nativeManifestOutputSchema,
+    dryRun: z.boolean().optional(),
   })
   .loose();
 
@@ -88,7 +89,13 @@ if (releasePolicy.phase0Mode) {
   console.log("Phase 0 release check: signed XPI and native manifest verification are deferred.");
 } else {
   await runCheck("native manifest temp-path verification", async () => verifyNativeManifestTempPath({ packageRoot }));
-  await runCheck("stale native manifest repair", async () => verifyStaleNativeManifestRepair({ packageRoot }));
+  if (process.platform === "win32") {
+    console.log(
+      "Live Windows registry registration and moved-install repair were not verified. Package verification uses --dry-run to avoid changing the current user's registry.",
+    );
+  } else {
+    await runCheck("stale native manifest repair", async () => verifyStaleNativeManifestRepair({ packageRoot }));
+  }
   if (releasePolicy.allowUnsignedLocal) {
     console.log("Release check completed with explicit non-release local unsigned override.");
   }
@@ -192,16 +199,23 @@ async function verifyNativeManifestTempPath(options: { readonly packageRoot: str
   const installRoot = await createTempInstall(options.packageRoot);
   const env = await createTempUserEnv();
   const tempHome = env.HOME ?? ".";
-  const result = await runNodeLauncher(installRoot, ["setup", "native-host", "--json"], {
+  const dryRun = process.platform === "win32";
+  const setupArgs = ["setup", "native-host", ...(dryRun ? ["--dry-run"] : []), "--json"];
+  const result = await runNodeLauncher(installRoot, setupArgs, {
     env,
   });
   const parsed = parseJsonWithSchema(result.stdout, "setup native-host --json output", "setup native-host stdout", setupNativeHostOutputSchema);
+  if (parsed.dryRun !== dryRun) {
+    throw new Error(`expected setup native-host dryRun to be ${String(dryRun)}`);
+  }
   const manifestPath = resolve(parsed.manifestPath);
   if (!manifestPath.startsWith(resolve(tempHome))) {
     throw new Error(`native manifest escaped temp home: ${manifestPath}`);
   }
 
-  const manifest = parseJsonWithSchema(await readFile(manifestPath, "utf8"), "native manifest", manifestPath, nativeManifestOutputSchema);
+  const manifest = dryRun
+    ? parsed.manifest
+    : parseJsonWithSchema(await readFile(manifestPath, "utf8"), "native manifest", manifestPath, nativeManifestOutputSchema);
   const binaryPath = await resolvePackagedBinary(installRoot);
   const expectedBinaryPath = await realpath(binaryPath);
   const manifestBinaryPath = await realpath(manifest.path);

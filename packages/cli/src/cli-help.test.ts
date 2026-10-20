@@ -119,7 +119,8 @@ describe("CLI help", () => {
 
     expect(output.exitCode).toBe(0);
     expect(output.stdout).toContain("firefox-cli setup [native-host] [--dry-run] [--json]");
-    expect(output.stdout).toContain("Print extension installation guidance");
+    expect(output.stdout).toContain("Register the native host and print extension installation and connection-approval guidance");
+    expect(output.stdout).toContain("`--dry-run` previews registration without writes");
     expect(output.stdout).toContain("firefox-cli setup native-host");
   });
 });
