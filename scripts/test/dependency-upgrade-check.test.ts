@@ -35,6 +35,11 @@ describe("dependency upgrade policy", () => {
     ]);
   });
 
+  it("runs the dependency audit without suppressing findings", () => {
+    expect(dependencyUpgradePolicy.auditCommand).toEqual(["bun", "audit"]);
+    expect(renderDependencyUpgradePolicy()).not.toContain("audit exception");
+  });
+
   it("renders the verification commands required after upgrades", () => {
     expect(renderDependencyUpgradePolicy()).toContain("bun run check");
     expect(renderDependencyUpgradePolicy()).toContain("bun run release:check");

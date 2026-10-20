@@ -1,6 +1,6 @@
-import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { runProcess, type ProcessRunnerOptions } from "./process-runner.js";
+import { pathToFileURL } from "node:url";
+import { type ProcessRunnerOptions, runProcess } from "./process-runner.js";
 
 export type DependencyUpgradeKind = "none" | "patch" | "minor" | "major" | "unknown";
 

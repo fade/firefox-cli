@@ -218,7 +218,7 @@ export function runCase04() {
     result: { action: "keyup" },
   });
 
-  expect(file.files?.item(0)?.name).toBe("fixture.txt");
+  expectUploadedFile(file, "fixture.txt", "text/plain");
   expect(events).toEqual(["dragstart:true", "drop:true", "upload-change", "down:12:1", "wheel:120", "keydown:A", "keyup:A"]);
 }
 
@@ -281,7 +281,7 @@ export async function runCase05() {
   }
 
   expect(file.files).toHaveLength(1);
-  expect(file.files?.item(0)?.name).toBe("second.txt");
+  expectUploadedFile(file, "second.txt", "");
   expect(window.DataTransfer).toBe(originalDataTransfer);
   expect(window.FileList).toBe(originalFileList);
   expect(Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "files")).toEqual(originalInputFiles);
@@ -293,6 +293,11 @@ export async function runCase05() {
     }
     expect(ownFiles.value.item(0)?.name).toBe("second.txt");
   }
+}
+
+function expectUploadedFile(input: HTMLInputElement, name: string, type: string): void {
+  const file = input.files?.item(0);
+  expect(file).toMatchObject({ name, type });
 }
 
 function isFileListLike(value: unknown): value is FileList {

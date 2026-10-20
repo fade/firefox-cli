@@ -1,5 +1,6 @@
 import { open as openFile, stat } from "node:fs/promises";
-import { basename } from "node:path";
+import mime from "mime";
+import { basename, extname } from "node:path";
 import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES, type UploadParams } from "@firefox-cli/protocol";
 import { optionalStringOption, optionalTarget, parseElementTarget, parsePositionalsAndOptions, parseTargetOptions } from "./parse.js";
 import { resolvePlatformPath } from "./platform-path.js";
@@ -66,8 +67,11 @@ async function readUploadFiles(paths: readonly string[], dependencies: CliDepend
     }
     const bytes = Buffer.from(rawBytes);
     uploadBudget.bytes += bytes.byteLength;
+    const name = basename(plan.inputPath);
+    const mimeType = mime.getType(extname(name));
     files.push({
-      name: basename(plan.inputPath),
+      name,
+      ...(mimeType === null ? {} : { mimeType }),
       dataBase64: bytes.toString("base64"),
     });
   }
