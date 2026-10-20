@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import { join, win32 } from "node:path";
 import {
   NATIVE_HOST_NAME,
@@ -57,6 +57,53 @@ describe("runCli setup registration", () => {
       dryRun: false,
     });
     expect(jsonManifest).toBe(textManifest);
+  });
+
+  it("reports the manifest path and filesystem reason when setup cannot write", async () => {
+    const homeDir = await createTempDir("firefox-cli-setup-manifest-write-failure");
+    const manifestPath = macOSManifestPath(homeDir);
+    await mkdir(manifestPath, { recursive: true });
+
+    const output = await runCli(["setup"], {
+      ...baseDependencies(),
+      homeDir,
+    });
+
+    expect(output.exitCode).toBe(1);
+    expect(output.stderr).toContain(`Path: ${manifestPath}`);
+    expect(output.stderr).toMatch(/Cause: .*rename/i);
+    expect(output.stderr).toContain("Check that the manifest path is not a directory");
+    expect(output.stderr).toContain("firefox-cli setup");
+  });
+
+  it("returns a machine-readable JSON error when setup cannot write the manifest", async () => {
+    const homeDir = await createTempDir("firefox-cli-setup-json-manifest-write-failure");
+    const manifestPath = macOSManifestPath(homeDir);
+    await mkdir(manifestPath, { recursive: true });
+
+    const output = await runCli(["setup", "--json"], {
+      ...baseDependencies(),
+      homeDir,
+    });
+    const payload: unknown = JSON.parse(output.stdout);
+    if (!isRecord(payload) || !isRecord(payload.error)) {
+      throw new Error("Expected a structured setup error.");
+    }
+    const registrationError = payload.error;
+    if (typeof registrationError.cause !== "string") {
+      throw new Error("Expected the setup error to include its filesystem cause.");
+    }
+
+    expect(output.exitCode).toBe(1);
+    expect(output.stderr).toBe("");
+    expect(registrationError).toMatchObject({
+      step: "manifest",
+      message: "Failed while writing the native messaging manifest.",
+      manifestPath,
+      diagnostic: "Atomic file write failed.",
+      nextAction: "Check that the manifest path is not a directory and its parent is writable, then retry `firefox-cli setup`.",
+    });
+    expect(registrationError.cause).toContain("rename");
   });
 
   it("registers the Windows native host during targeted setup", async () => {
@@ -329,4 +376,8 @@ async function withWorkingDirectory<T>(directory: string, action: () => Promise<
   } finally {
     process.chdir(previousDirectory);
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

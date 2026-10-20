@@ -21,6 +21,7 @@ export class NativeMessagingRegistrationError extends Error {
   readonly stderr: string | undefined;
   readonly hresult: number | undefined;
   readonly accessDenied: boolean;
+  readonly manifestPath: string | undefined;
 
   constructor(options: {
     readonly step: NativeMessagingRegistrationStep;
@@ -28,8 +29,10 @@ export class NativeMessagingRegistrationError extends Error {
     readonly stdout?: string;
     readonly stderr?: string;
     readonly hresult?: number;
+    readonly manifestPath?: string;
+    readonly cause?: unknown;
   }) {
-    super(options.diagnostic);
+    super(options.diagnostic, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = "NativeMessagingRegistrationError";
     this.step = options.step;
     this.diagnostic = options.diagnostic;
@@ -37,6 +40,7 @@ export class NativeMessagingRegistrationError extends Error {
     this.stderr = options.stderr;
     this.hresult = options.hresult;
     this.accessDenied = options.hresult === -2147024891;
+    this.manifestPath = options.manifestPath;
   }
 }
 
@@ -47,6 +51,8 @@ export async function registerNativeMessagingHost(plan: NativeMessagingManifestP
     throw new NativeMessagingRegistrationError({
       step: "manifest",
       diagnostic: errorMessage(error),
+      manifestPath: plan.manifestPath,
+      cause: error,
     });
   }
 

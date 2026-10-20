@@ -20,15 +20,16 @@ export async function setup(args: readonly string[], dependencies: CliDependenci
 
   if (args.length === 0 || args.includes("--json") || args.includes("--dry-run")) {
     const dryRun = args.includes("--dry-run");
+    const json = args.includes("--json");
     const plan = await createManifestPlan(dependencies);
     if (!dryRun) {
-      const failure = await registerNativeHost(plan, dependencies, "firefox-cli setup");
+      const failure = await registerNativeHost(plan, dependencies, "firefox-cli setup", json);
       if (failure !== undefined) {
         return failure;
       }
     }
     const extensionInstallUrl = await resolveExtensionInstallUrl(dependencies.version, dependencies.fetchExtensionUpdates);
-    if (args.includes("--json")) {
+    if (json) {
       return ok(
         `${JSON.stringify(
           {
@@ -66,7 +67,7 @@ async function setupNativeHost(args: readonly string[], dependencies: CliDepende
   const plan = await createManifestPlan(dependencies);
 
   if (!dryRun) {
-    const failure = await registerNativeHost(plan, dependencies, "firefox-cli setup native-host");
+    const failure = await registerNativeHost(plan, dependencies, "firefox-cli setup native-host", json);
     if (failure !== undefined) {
       return failure;
     }

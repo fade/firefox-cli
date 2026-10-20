@@ -27,16 +27,35 @@ export type WindowsNativeHostRegistrationStatus =
       readonly nextAction: string;
     };
 
+interface NativeHostRegistrationFailureDetails {
+  readonly step: NativeMessagingRegistrationError["step"];
+  readonly message: string;
+  readonly manifestPath: string | undefined;
+  readonly diagnostic: string;
+  readonly cause: string | undefined;
+  readonly hresult: number | undefined;
+  readonly windowsPowerShellStdout: string | undefined;
+  readonly windowsPowerShellStderr: string | undefined;
+  readonly nextAction: string;
+}
+
+const nativeHostRegistrationFailureMessages: Readonly<Record<NativeMessagingRegistrationError["step"], string>> = {
+  manifest: "Failed while writing the native messaging manifest.",
+  "windows-registry-read": "Failed while reading the Windows registry entry.",
+  "windows-registry-write": "Failed while updating the Windows registry entry.",
+};
+
 export async function registerNativeHost(
   plan: NativeMessagingManifestPlan,
   dependencies: CliDependencies,
   retryCommand: string,
+  json = false,
 ): Promise<CliResult | undefined> {
   try {
     await registerNativeMessagingHost(plan, dependencies.nativeHostRegistration);
     return undefined;
   } catch (failure) {
-    return nativeHostRegistrationFailure(failure, retryCommand);
+    return nativeHostRegistrationFailure(failure, retryCommand, json);
   }
 }
 
@@ -84,28 +103,74 @@ export function formatNativeHostRegistration(plan: NativeMessagingManifestPlan, 
   ].filter((line): line is string => line !== undefined);
 }
 
-export function nativeHostRegistrationFailure(failure: unknown, retryCommand: string): CliResult {
+export function nativeHostRegistrationFailure(failure: unknown, retryCommand: string, json = false): CliResult {
   if (!(failure instanceof NativeMessagingRegistrationError)) {
     throw failure;
   }
 
-  const step =
-    failure.step === "manifest"
-      ? "writing the native messaging manifest"
-      : failure.step === "windows-registry-read"
-        ? "reading the Windows registry entry"
-        : "updating the Windows registry entry";
+  const details = createNativeHostRegistrationFailureDetails(failure, retryCommand);
+  return json ? formatNativeHostRegistrationFailureJson(details) : formatNativeHostRegistrationFailureText(details);
+}
+
+function createNativeHostRegistrationFailureDetails(failure: NativeMessagingRegistrationError, retryCommand: string): NativeHostRegistrationFailureDetails {
+  return {
+    step: failure.step,
+    message: nativeHostRegistrationFailureMessages[failure.step],
+    manifestPath: failure.manifestPath,
+    diagnostic: failure.diagnostic,
+    cause: deepestCauseMessage(failure),
+    hresult: failure.hresult,
+    windowsPowerShellStdout: failure.hresult === undefined ? nonEmptyTrimmed(failure.stdout) : undefined,
+    windowsPowerShellStderr: nonEmptyTrimmed(failure.stderr),
+    nextAction: registrationFailureNextAction(failure, retryCommand),
+  };
+}
+
+function formatNativeHostRegistrationFailureJson(details: NativeHostRegistrationFailureDetails): CliResult {
+  return {
+    exitCode: 1,
+    stdout: `${JSON.stringify({ error: details }, null, 2)}\n`,
+    stderr: "",
+  };
+}
+
+function formatNativeHostRegistrationFailureText(details: NativeHostRegistrationFailureDetails): CliResult {
   const diagnostics = [
-    `Failed while ${step}.`,
-    `Diagnostic: ${failure.diagnostic}`,
-    failure.hresult === undefined ? undefined : `Windows error code: ${String(failure.hresult)}`,
-    failure.stdout === undefined || failure.stdout.trim().length === 0 || failure.hresult !== undefined
-      ? undefined
-      : `Windows PowerShell stdout: ${failure.stdout.trim()}`,
-    failure.stderr === undefined || failure.stderr.trim().length === 0 ? undefined : `Windows PowerShell stderr: ${failure.stderr.trim()}`,
-    failure.accessDenied
-      ? `If Windows denied registry access, check the account's permissions or retry from an elevated terminal, then run \`${retryCommand}\` again.`
-      : `Resolve the reported problem, then retry \`${retryCommand}\`.`,
+    details.message,
+    details.manifestPath === undefined ? undefined : `Path: ${details.manifestPath}`,
+    `Diagnostic: ${details.diagnostic}`,
+    details.cause === undefined ? undefined : `Cause: ${details.cause}`,
+    details.hresult === undefined ? undefined : `Windows error code: ${String(details.hresult)}`,
+    details.windowsPowerShellStdout === undefined ? undefined : `Windows PowerShell stdout: ${details.windowsPowerShellStdout}`,
+    details.windowsPowerShellStderr === undefined ? undefined : `Windows PowerShell stderr: ${details.windowsPowerShellStderr}`,
+    `Next action: ${details.nextAction}`,
   ];
   return error(`${diagnostics.filter((line): line is string => line !== undefined).join("\n")}\n`);
+}
+
+function nonEmptyTrimmed(value: string | undefined): string | undefined {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function deepestCauseMessage(error: Error): string | undefined {
+  let cause: unknown = error.cause;
+  let message: string | undefined;
+  while (cause instanceof Error) {
+    message = cause.message;
+    cause = cause.cause;
+  }
+  return message;
+}
+
+function registrationFailureNextAction(failure: NativeMessagingRegistrationError, retryCommand: string): string {
+  if (failure.step === "manifest") {
+    return `Check that the manifest path is not a directory and its parent is writable, then retry \`${retryCommand}\`.`;
+  }
+
+  if (failure.accessDenied) {
+    return `If Windows denied registry access, check the account's permissions or retry from an elevated terminal, then run \`${retryCommand}\` again.`;
+  }
+
+  return `Resolve the reported problem, then retry \`${retryCommand}\`.`;
 }
