@@ -168,7 +168,6 @@ function formatDoctorText(manifestPath: string, status: DoctorSetupStatus, conne
       `Path: ${manifestPath}`,
       manifest.status === "stale" ? `Installed path: ${manifest.installedPath}` : undefined,
       manifest.status === "invalid" ? `Validation error: ${manifest.reason}` : undefined,
-      manifest.status === "unreadable" ? `Manifest inspection error: ${manifest.reason}` : undefined,
       ...formatWindowsRegistrationText(status.nativeHostRegistration),
       `Extension connection: ${connection.status}`,
       "nextAction" in manifest ? `Next action: ${manifest.nextAction}` : undefined,
@@ -244,12 +243,6 @@ async function readNativeHostManifestStatus(plan: Awaited<ReturnType<typeof crea
       readonly reason: string;
       readonly nextAction: string;
     }
-  | {
-      readonly status: "unreadable";
-      readonly path: string;
-      readonly reason: string;
-      readonly nextAction: string;
-    }
 > {
   let content: string;
   try {
@@ -262,12 +255,7 @@ async function readNativeHostManifestStatus(plan: Awaited<ReturnType<typeof crea
         nextAction: "Run `firefox-cli setup`.",
       };
     }
-    return {
-      status: "unreadable",
-      path: plan.manifestPath,
-      reason: error instanceof Error ? error.message : String(error),
-      nextAction: "Check the manifest path and permissions, then run `firefox-cli doctor --fix`.",
-    };
+    throw error;
   }
 
   let installed: typeof plan.manifest;
