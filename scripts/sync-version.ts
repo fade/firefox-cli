@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFormattedJsonFiles, type FormattedJsonFile } from "./write-formatted-json.js";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -40,6 +41,7 @@ async function readRootVersion(root: string): Promise<string> {
 
 async function syncJsonManifestVersions(root: string, version: string, check: boolean): Promise<readonly string[]> {
   const changes = [];
+  const files: FormattedJsonFile[] = [];
   for (const path of [...packageManifestPaths, extensionManifestPath, claudePluginManifestPath]) {
     const absolutePath = join(root, path);
     const manifest = await readJsonFile(absolutePath);
@@ -47,9 +49,13 @@ async function syncJsonManifestVersions(root: string, version: string, check: bo
     changes.push(path);
     if (!check) {
       manifest.version = version;
-      await writeFile(absolutePath, `${JSON.stringify(manifest, null, 2)}\n`);
+      files.push({
+        path: absolutePath,
+        value: manifest,
+      });
     }
   }
+  await writeFormattedJsonFiles(files);
   return changes;
 }
 

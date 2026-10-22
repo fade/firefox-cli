@@ -1,6 +1,7 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { FIREFOX_CLI_EXTENSION_ID } from "@firefox-cli/protocol";
+import { writeFormattedJsonFiles } from "./write-formatted-json.js";
 
 export const extensionUpdateManifestPath = "docs/firefox-cli/updates.json";
 
@@ -31,7 +32,7 @@ export async function syncExtensionUpdateManifest(options: { readonly root: stri
   if (before === after) {
     return [];
   }
-  await writeFile(path, after);
+  await writeFormattedJsonFiles([{ path, value: manifest }]);
   return [extensionUpdateManifestPath];
 }
 

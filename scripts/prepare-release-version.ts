@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { syncExtensionUpdateManifest } from "./extension-update-manifest.js";
 import { runProcess } from "./process-runner.js";
 import { syncVersion } from "./sync-version.js";
+import { writeFormattedJsonFiles } from "./write-formatted-json.js";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -29,7 +30,12 @@ export async function prepareReleaseVersion(
 
   if (version !== previousVersion) {
     rootPackage.version = version;
-    await writeFile(rootPackagePath, `${JSON.stringify(rootPackage, null, 2)}\n`);
+    await writeFormattedJsonFiles([
+      {
+        path: rootPackagePath,
+        value: rootPackage,
+      },
+    ]);
     changedFiles.push("package.json");
   }
 

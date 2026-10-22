@@ -1,10 +1,16 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createTempDir } from "@firefox-cli/test-support";
 import { describe, expect, it } from "vitest";
 import { extensionDisplayMetadata } from "../extension-display-metadata.js";
 import { extensionReleaseXpiUrl, extensionUpdateManifestPath } from "../extension-update-manifest.js";
 import { prepareReleaseVersion, selectReleaseVersion } from "../prepare-release-version.js";
+import { runProcess } from "../process-runner.js";
+
+const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
+const biomeCliPath = join(repositoryRoot, "node_modules/@biomejs/biome/bin/biome");
+const biomeConfigPath = join(repositoryRoot, "biome.json");
 
 describe("prepareReleaseVersion", () => {
   it("selects the requested version when its release tag is available", () => {
@@ -61,6 +67,67 @@ describe("prepareReleaseVersion", () => {
     expect(result.tag).toBe("v0.2.0");
     await expect(readJsonVersion(join(root, "package.json"))).resolves.toBe("0.2.0");
     await expect(readExtensionUpdateLink(join(root, extensionUpdateManifestPath), "0.2.0")).resolves.toBe(extensionReleaseXpiUrl("0.2.0"));
+  });
+
+  it("keeps a release-version-bumped extension manifest formatter-valid", async () => {
+    const root = await createReleaseFixture("0.3.0");
+    const manifestPath = join(root, "packages/extension/src/manifest.json");
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify(
+        {
+          manifest_version: 3,
+          name: extensionDisplayMetadata.name,
+          version: "0.3.0",
+          browser_specific_settings: {
+            gecko: {
+              data_collection_permissions: {
+                required: ["browsingActivity", "websiteActivity", "websiteContent"],
+                optional: [],
+              },
+            },
+          },
+          permissions: [
+            "nativeMessaging",
+            "scripting",
+            "tabs",
+            "storage",
+            "downloads",
+            "cookies",
+            "notifications",
+            "clipboardRead",
+            "clipboardWrite",
+            "webRequest",
+          ],
+          host_permissions: ["<all_urls>"],
+          background: {
+            scripts: ["background.js"],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    await runReleaseVersionPrepWithBun(root);
+
+    await expect(readJsonVersion(manifestPath)).resolves.toBe("0.4.0");
+    const jsonFiles = [
+      "package.json",
+      "packages/cli/package.json",
+      "packages/extension/package.json",
+      "packages/native-host/package.json",
+      "packages/protocol/package.json",
+      "packages/test-support/package.json",
+      "packages/extension/src/manifest.json",
+      ".claude-plugin/plugin.json",
+      extensionUpdateManifestPath,
+    ].map((path) => join(root, path));
+    await expect(
+      runProcess(process.execPath, [biomeCliPath, "format", `--config-path=${biomeConfigPath}`, "--vcs-enabled=false", ...jsonFiles], {
+        cwd: repositoryRoot,
+      }),
+    ).resolves.toMatchObject({ exitCode: 0 });
   });
 
   it("preserves unknown update manifest metadata during release version prep", async () => {
@@ -197,6 +264,29 @@ async function writeVersionJson(path: string, name: string, version: string): Pr
 async function readJsonVersion(path: string): Promise<unknown> {
   const parsed = await readJsonObject(path);
   return "version" in parsed ? parsed.version : undefined;
+}
+
+async function runReleaseVersionPrepWithBun(root: string): Promise<void> {
+  const result = await runProcess(
+    "bun",
+    [
+      "-e",
+      [
+        'import { prepareReleaseVersion } from "./scripts/prepare-release-version.ts";',
+        "const root = process.env.FIREFOX_CLI_RELEASE_FIXTURE_ROOT;",
+        'if (root === undefined) throw new Error("Missing release fixture root.");',
+        'await prepareReleaseVersion({ root, targetVersion: "0.4.0", unavailableTags: [] });',
+      ].join("\n"),
+    ],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        FIREFOX_CLI_RELEASE_FIXTURE_ROOT: root,
+      },
+    },
+  );
+  expect(result.exitCode).toBe(0);
 }
 
 async function readJsonObject(path: string): Promise<Readonly<Record<string, unknown>>> {
