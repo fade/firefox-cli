@@ -3,8 +3,6 @@
 - the CLI/native host executable from the npm package
 - the Firefox extension that connects Firefox to the native host.
 
-The CLI can inspect Firefox after the native host is registered, the extension is loaded, and the user approves the control request.
-
 ## Install the CLI
 
 ```sh
