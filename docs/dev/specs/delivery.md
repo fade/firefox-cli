@@ -62,6 +62,14 @@ Package requirements:
 - Host-mode stdout is reserved for native messaging frames.
 - Release-candidate verification requires a signed `dist/extension-artifacts/firefox-cli-<version>.xpi` artifact and matching provenance.
 
+### Native-host registration
+
+`firefox-cli setup` and `firefox-cli setup native-host` register the host for the current user on macOS, Linux, and Windows without requesting administrator elevation.
+
+On Windows, setup writes the manifest and creates or updates the Firefox native messaging registry entry to point to it. Repeated setup updates the registration. `doctor` detects a missing or wrong registry entry. `doctor --fix` repairs it.
+
+If registry registration fails after the manifest is written, setup exits unsuccessfully and leaves the manifest in place. Report the failed step, useful Windows error details, and instructions to retry after resolving the problem. Suggest common remedies appropriate to the error, including elevated permissions for access failures.
+
 Manual extension install is in scope. Mozilla store/public listing automation is out of scope.
 
 Install paths:

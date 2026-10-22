@@ -20,8 +20,8 @@ The CLI supports full browser control where Firefox WebExtensions allow it: navi
 The happy path:
 
 1. User installs the npm package and gets one executable: `firefox-cli`.
-2. User manually installs or temporarily loads the Firefox extension from the URL printed by `firefox-cli setup`.
-3. User runs `firefox-cli setup native-host` or `firefox-cli doctor --fix` to register the native messaging host.
+2. User runs `firefox-cli setup` to register the native messaging host and print the extension URL and connection-approval instructions.
+3. User manually installs or temporarily loads the Firefox extension from that URL.
 4. User runs `firefox-cli connect` and responds to the Firefox approval request, or opens the extension popup and approves the first connection.
 5. Commands use the active Firefox tab or window only when the targeting rules permit omitted selectors. Ambiguous targets require explicit selectors.
 

@@ -1,20 +1,16 @@
-# Setup
-
 `firefox-cli` needs two installed pieces:
 
-- the CLI/native host executable from the npm package;
+- the CLI/native host executable from the npm package
 - the Firefox extension that connects Firefox to the native host.
 
-The CLI cannot inspect Firefox until the extension is loaded, the native messaging manifest is installed, and the user approves the Firefox control request.
-
-## Install The CLI
+## Install the CLI
 
 ```sh
 npm install -g firefox-cli
 firefox-cli setup
 ```
 
-`firefox-cli setup` prints the extension download URL and native-host setup guidance. `firefox-cli setup --json` also includes the planned native-host manifest path.
+`firefox-cli setup` registers the native host for the current user, then prints the matching extension URL and connection-approval instructions. `--json` changes only the output format. Use `--dry-run` to preview setup without writing the manifest or Windows registry entry.
 
 Repository checkouts use:
 
@@ -24,7 +20,7 @@ bun run package:check
 node dist/package/bin/firefox-cli.js setup
 ```
 
-## Install The Extension
+## Install the extension
 
 Open the extension URL printed by `firefox-cli setup` in Firefox and accept the install prompt. The URL points at the signed XPI for the matching CLI version.
 
@@ -36,33 +32,9 @@ bun run extension:build
 
 Open `about:debugging#/runtime/this-firefox`, choose `Load Temporary Add-on`, and select `dist/extension/manifest.json`.
 
-## Register The Native Host
-
-```sh
-firefox-cli setup native-host
-```
-
-The command writes a per-user Firefox native messaging manifest. Use `--dry-run --json` to print the manifest without writing it.
-
-Per-user manifest locations:
-
-| Platform | Location |
-| --- | --- |
-| macOS | `~/Library/Application Support/Mozilla/NativeMessagingHosts/firefox_cli.json` |
-| Linux | `~/.mozilla/native-messaging-hosts/firefox_cli.json` |
-| Windows | `%APPDATA%\firefox-cli\native-messaging-hosts\firefox_cli.json`; `setup native-host` prints the required Firefox registry key |
-
-After npm upgrades or package moves, run:
-
-```sh
-firefox-cli doctor --fix
-```
-
-`doctor --fix` repairs missing or stale native-host manifests.
-
 ## Connect Firefox
 
-Run `firefox-cli connect` and respond to the approval request in Firefox, or open the `firefox-cli` extension popup in Firefox and approve the native host. The extension stores the pair token in Firefox extension storage; the native host stores pair state under the user-local `firefox-cli` state directory.
+Run `firefox-cli connect` and approve the request in Firefox, or open the `firefox-cli` extension popup and approve the native host.
 
 Verify the connection:
 
@@ -74,13 +46,30 @@ firefox-cli tab
 
 `doctor` exits non-zero when setup is incomplete and prints the next action.
 
+## Register the native host explicitly
+
+Use `firefox-cli setup native-host` to register or update the native host without fetching the extension URL. Use `--dry-run --json` to preview the registration plan without writes.
+
+Per-user registration:
+
+| Platform | Location |
+| --- | --- |
+| macOS | `~/Library/Application Support/Mozilla/NativeMessagingHosts/firefox_cli.json` |
+| Linux | `~/.mozilla/native-messaging-hosts/firefox_cli.json` |
+| Windows | `%APPDATA%\firefox-cli\native-messaging-hosts\firefox_cli.json`. Setup creates `HKEY_CURRENT_USER\SOFTWARE\Mozilla\NativeMessagingHosts\firefox_cli` and points it at the manifest. |
+
+After npm upgrades or package moves, run `firefox-cli doctor --fix`. On Windows, `doctor` reports the registry entry with the manifest and extension connection state. `doctor --fix` repairs a missing or stale manifest and a missing or wrong registry entry.
+
 ## Troubleshooting
 
 `Native host manifest: missing`
-: Run `firefox-cli setup native-host` or `firefox-cli doctor --fix`.
+: Run `firefox-cli setup` or `firefox-cli doctor --fix`.
 
 `Native host manifest: stale`
 : The manifest points at an old package path. Run `firefox-cli doctor --fix`.
+
+`Windows native-host registration: missing` or `stale`
+: Run `firefox-cli setup` or `firefox-cli doctor --fix`.
 
 `Extension connection: disconnected`
 : Load or enable the extension and keep Firefox running.

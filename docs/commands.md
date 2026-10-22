@@ -25,12 +25,14 @@ Private windows are listed and readable. Mutating commands against private windo
 
 | Command | Behavior |
 | --- | --- |
-| `firefox-cli setup` | Print extension setup guidance and the native-host setup command. |
-| `firefox-cli setup native-host [--dry-run] [--json]` | Write or print the native messaging manifest. |
-| `firefox-cli doctor [--fix] [--json]` | Diagnose native-host manifest and extension connection state. |
+| `firefox-cli setup [--dry-run] [--json]` | Register the native host, then print the matching extension URL and connection-approval instructions. |
+| `firefox-cli setup native-host [--dry-run] [--json]` | Register the native host without extension guidance, or preview the plan with `--dry-run`. |
+| `firefox-cli doctor [--fix] [--json]` | Diagnose the native-host manifest, Windows registry entry, and extension connection. |
 | `firefox-cli connect [--json]` | Request Firefox control approval and wait for the user's decision. |
 | `firefox-cli unpair` | Clear CLI/native-host pair state. |
 | `firefox-cli capabilities [--json]` | List supported and gated protocol capabilities. |
+
+For both setup forms, `--json` changes only the output format. Use `--dry-run` to preview without writing files or registry entries. `doctor --fix` repairs missing or stale native-host registration.
 
 ## Tabs, windows, and navigation
 

@@ -53,7 +53,7 @@ Startup handshake:
 Errors should be concise and actionable:
 
 - If extension is not installed: print the matching extension download URL.
-- If native host is not registered: print `firefox-cli setup native-host`.
+- If native host is not registered: print `firefox-cli setup`.
 - If Firefox is not running or extension is disconnected: tell the user to open Firefox and run `firefox-cli connect`.
 - If first-use approval is pending: tell the user to run `firefox-cli connect` or open the extension popup and approve.
 - If a page is restricted: name the restriction and suggest trying a normal web page/tab.

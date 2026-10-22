@@ -31,12 +31,14 @@ Global options:
 
 Setup and diagnostics:
 
-- `firefox-cli setup`: print extension download instructions and native-host setup status.
+- `firefox-cli setup`: register/update the native messaging host, then print the extension link and connection-approval instructions.
 - `firefox-cli setup native-host`: register/update the native messaging host.
 - `firefox-cli doctor`: diagnose extension install, native manifest, host path, extension connection, approval, Firefox status, and protocol version.
 - `firefox-cli doctor --fix`: repair native-host registration when possible.
 - `firefox-cli unpair`: remove local approval state.
 - `firefox-cli capabilities`: list command support by capability group.
+
+For both setup forms, `--json` changes only the output format. Use `--dry-run` to preview registration without writing files or registry entries. Combine `--dry-run --json` for a machine-readable preview.
 
 MVP:
 

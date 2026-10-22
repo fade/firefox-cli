@@ -1,4 +1,5 @@
 import type { CliRouteMetadata, CommandId, RequestEnvelope, ResponseEnvelope } from "@firefox-cli/protocol";
+import type { NativeMessagingRegistrationOptions } from "@firefox-cli/native-host";
 
 export type CliExitCode = 0 | 1;
 
@@ -31,6 +32,7 @@ export interface CliDependencies {
   readonly packageRoot: string;
   readonly binaryPath?: string;
   readonly cwd?: string;
+  readonly nativeHostRegistration?: NativeMessagingRegistrationOptions;
   sendRequest?(request: RequestEnvelope): Promise<unknown>;
   readonly fetchExtensionUpdates?: () => Promise<unknown>;
   readStdin?(): Promise<string>;

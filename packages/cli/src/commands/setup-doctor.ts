@@ -1,30 +1,43 @@
 import { readFile } from "node:fs/promises";
-import {
-  isPersistedJsonFileError,
-  parseNativeMessagingManifestJson,
-  planNativeMessagingManifest,
-  writeNativeMessagingManifest,
-} from "@firefox-cli/native-host";
+import { isPersistedJsonFileError, parseNativeMessagingManifestJson, planNativeMessagingManifest } from "@firefox-cli/native-host";
 import { optionalAppDataDir } from "../default-dependencies.js";
 import { resolveExtensionInstallUrl } from "../extension-updates.js";
 import { ok } from "../result.js";
 import { createNoopRequest, sendOrUnavailable } from "../transport.js";
 import type { CliDependencies, CliResult } from "../types.js";
+import {
+  formatNativeHostManifestReadFailure,
+  formatNativeHostRegistration,
+  NativeHostManifestReadError,
+  nativeHostRegistrationFailure,
+  readWindowsNativeHostRegistration,
+  registerNativeHost,
+  type WindowsNativeHostRegistrationStatus,
+} from "./native-host-registration.js";
 
 export async function setup(args: readonly string[], dependencies: CliDependencies, renderHelp: () => string): Promise<CliResult> {
   if (args[0] === "native-host") {
     return setupNativeHost(args, dependencies);
   }
 
-  if (args.length === 0 || args.includes("--json")) {
+  if (args.length === 0 || args.includes("--json") || args.includes("--dry-run")) {
+    const dryRun = args.includes("--dry-run");
+    const json = args.includes("--json");
     const plan = await createManifestPlan(dependencies);
+    if (!dryRun) {
+      const failure = await registerNativeHost(plan, dependencies, "firefox-cli setup", json);
+      if (failure !== undefined) {
+        return failure;
+      }
+    }
     const extensionInstallUrl = await resolveExtensionInstallUrl(dependencies.version, dependencies.fetchExtensionUpdates);
-    if (args.includes("--json")) {
+    if (json) {
       return ok(
         `${JSON.stringify(
           {
             extensionInstallUrl,
             nativeHostManifestPath: plan.manifestPath,
+            dryRun,
           },
           null,
           2,
@@ -32,7 +45,15 @@ export async function setup(args: readonly string[], dependencies: CliDependenci
       );
     }
 
-    return ok(["firefox-cli setup", formatExtensionSetupInstruction(extensionInstallUrl), "Native host: run `firefox-cli setup native-host`.", ""].join("\n"));
+    return ok(
+      [
+        "firefox-cli setup",
+        ...formatNativeHostRegistration(plan, dryRun),
+        formatExtensionSetupInstruction(extensionInstallUrl),
+        "Connection: run `firefox-cli connect` and approve the request in Firefox.",
+        "",
+      ].join("\n"),
+    );
   }
 
   if (args[0] !== "native-host") {
@@ -48,59 +69,123 @@ async function setupNativeHost(args: readonly string[], dependencies: CliDepende
   const plan = await createManifestPlan(dependencies);
 
   if (!dryRun) {
-    await writeNativeMessagingManifest(plan);
+    const failure = await registerNativeHost(plan, dependencies, "firefox-cli setup native-host", json);
+    if (failure !== undefined) {
+      return failure;
+    }
   }
 
   if (json) {
     return ok(`${JSON.stringify({ ...plan, dryRun }, null, 2)}\n`);
   }
 
-  return ok(
-    [
-      `Native host manifest ${dryRun ? "planned" : "installed"}: ${plan.manifestPath}`,
-      plan.registration.kind === "windows-registry"
-        ? `Registry key to set: ${plan.registration.hive}\\${plan.registration.key}`
-        : "Firefox will discover this per-user manifest automatically.",
-      "",
-    ].join("\n"),
-  );
+  return ok([...formatNativeHostRegistration(plan, dryRun), ""].join("\n"));
 }
 
 export async function doctor(args: readonly string[], dependencies: CliDependencies): Promise<CliResult> {
-  const fix = args.includes("--fix");
-  const json = args.includes("--json");
   const plan = await createManifestPlan(dependencies);
-  let manifestStatus = await readNativeHostManifestStatus(plan);
-  if (manifestStatus.status !== "installed" && fix) {
-    await writeNativeMessagingManifest(plan);
-    manifestStatus = { status: "installed", path: plan.manifestPath };
+  const json = args.includes("--json");
+  const setup = await resolveDoctorSetupStatus(plan, dependencies, args.includes("--fix"), json);
+  if (!setup.ok) {
+    return setup.result;
   }
 
   const connection = await checkExtensionConnection(dependencies);
-  const payload = {
-    nativeHostManifest: manifestStatus,
-    extensionConnection: connection,
-  };
-  const setupHealthy = manifestStatus.status === "installed";
+  return json ? formatDoctorJson(setup.status, connection) : formatDoctorText(plan.manifestPath, setup.status, connection);
+}
 
-  if (json) {
+interface DoctorSetupStatus {
+  readonly nativeHostManifest: Awaited<ReturnType<typeof readNativeHostManifestStatus>>;
+  readonly nativeHostRegistration?: WindowsNativeHostRegistrationStatus;
+}
+
+type DoctorSetupStatusResult = { readonly ok: true; readonly status: DoctorSetupStatus } | { readonly ok: false; readonly result: CliResult };
+
+async function resolveDoctorSetupStatus(
+  plan: Awaited<ReturnType<typeof createManifestPlan>>,
+  dependencies: CliDependencies,
+  fix: boolean,
+  json: boolean,
+): Promise<DoctorSetupStatusResult> {
+  const current = await readDoctorSetupStatus(plan, dependencies, json, fix);
+  if (!current.ok || !fix || !requiresDoctorRepair(current.status)) {
+    return current;
+  }
+
+  const failure = await registerNativeHost(plan, dependencies, "firefox-cli doctor --fix", json);
+  if (failure !== undefined) {
+    return { ok: false, result: failure };
+  }
+  return readDoctorSetupStatus(plan, dependencies, json, fix);
+}
+
+async function readDoctorSetupStatus(
+  plan: Awaited<ReturnType<typeof createManifestPlan>>,
+  dependencies: CliDependencies,
+  json: boolean,
+  fix: boolean,
+): Promise<DoctorSetupStatusResult> {
+  let nativeHostManifest: Awaited<ReturnType<typeof readNativeHostManifestStatus>>;
+  try {
+    nativeHostManifest = await readNativeHostManifestStatus(plan);
+  } catch (failure) {
+    if (!(failure instanceof NativeHostManifestReadError)) {
+      throw failure;
+    }
     return {
-      exitCode: setupHealthy && connection.status === "connected" ? 0 : 1,
-      stdout: `${JSON.stringify(payload, null, 2)}\n`,
-      stderr: "",
+      ok: false,
+      result: formatNativeHostManifestReadFailure(failure, json, fix),
     };
   }
 
+  try {
+    const nativeHostRegistration = await readWindowsNativeHostRegistration(plan, dependencies);
+    return {
+      ok: true,
+      status: {
+        nativeHostManifest,
+        ...(nativeHostRegistration === undefined ? {} : { nativeHostRegistration }),
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      result: nativeHostRegistrationFailure(error, "firefox-cli doctor --fix", json),
+    };
+  }
+}
+
+function requiresDoctorRepair(status: DoctorSetupStatus): boolean {
+  return (
+    status.nativeHostManifest.status !== "installed" || (status.nativeHostRegistration !== undefined && status.nativeHostRegistration.status !== "installed")
+  );
+}
+
+function formatDoctorJson(status: DoctorSetupStatus, connection: Awaited<ReturnType<typeof checkExtensionConnection>>): CliResult {
+  const payload = {
+    ...status,
+    extensionConnection: connection,
+  };
   return {
-    exitCode: setupHealthy && connection.status === "connected" ? 0 : 1,
+    exitCode: doctorExitCode(status, connection),
+    stdout: `${JSON.stringify(payload, null, 2)}\n`,
+    stderr: "",
+  };
+}
+
+function formatDoctorText(manifestPath: string, status: DoctorSetupStatus, connection: Awaited<ReturnType<typeof checkExtensionConnection>>): CliResult {
+  const manifest = status.nativeHostManifest;
+  return {
+    exitCode: doctorExitCode(status, connection),
     stdout: [
       "firefox-cli doctor",
-      `Native host manifest: ${payload.nativeHostManifest.status}`,
-      `Path: ${plan.manifestPath}`,
-      payload.nativeHostManifest.status === "stale" ? `Installed path: ${payload.nativeHostManifest.installedPath}` : undefined,
-      payload.nativeHostManifest.status === "invalid" ? `Validation error: ${payload.nativeHostManifest.reason}` : undefined,
+      `Native host manifest: ${manifest.status}`,
+      `Path: ${manifestPath}`,
+      manifest.status === "stale" ? `Installed path: ${manifest.installedPath}` : undefined,
+      manifest.status === "invalid" ? `Validation error: ${manifest.reason}` : undefined,
+      ...formatWindowsRegistrationText(status.nativeHostRegistration),
       `Extension connection: ${connection.status}`,
-      "nextAction" in payload.nativeHostManifest ? `Next action: ${payload.nativeHostManifest.nextAction}` : undefined,
+      "nextAction" in manifest ? `Next action: ${manifest.nextAction}` : undefined,
       connection.nextAction === undefined ? undefined : `Connection next action: ${connection.nextAction}`,
       "",
     ]
@@ -108,6 +193,23 @@ export async function doctor(args: readonly string[], dependencies: CliDependenc
       .join("\n"),
     stderr: "",
   };
+}
+
+function formatWindowsRegistrationText(registration: WindowsNativeHostRegistrationStatus | undefined): readonly (string | undefined)[] {
+  if (registration === undefined) {
+    return [];
+  }
+  return [
+    `Windows native-host registration: ${registration.status}`,
+    `Registry path: ${registration.registryPath}`,
+    registration.status === "stale" ? `Registered manifest path: ${registration.registeredManifestPath}` : undefined,
+    registration.status !== "installed" ? `Registration next action: ${registration.nextAction}` : undefined,
+  ];
+}
+
+function doctorExitCode(status: DoctorSetupStatus, connection: Awaited<ReturnType<typeof checkExtensionConnection>>): 0 | 1 {
+  const registrationHealthy = status.nativeHostRegistration === undefined || status.nativeHostRegistration.status === "installed";
+  return status.nativeHostManifest.status === "installed" && registrationHealthy && connection.status === "connected" ? 0 : 1;
 }
 
 async function createManifestPlan(dependencies: CliDependencies) {
@@ -165,10 +267,10 @@ async function readNativeHostManifestStatus(plan: Awaited<ReturnType<typeof crea
       return {
         status: "missing",
         path: plan.manifestPath,
-        nextAction: "Run `firefox-cli setup native-host`.",
+        nextAction: "Run `firefox-cli setup`.",
       };
     }
-    throw error;
+    throw new NativeHostManifestReadError(plan.manifestPath, error);
   }
 
   let installed: typeof plan.manifest;
