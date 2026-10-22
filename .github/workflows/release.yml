@@ -7,6 +7,11 @@ on:
         description: "Optional x.y.z version to release; defaults to package.json."
         required: false
         type: string
+      continue_signed_0_4_0_release:
+        description: "Continue 0.4.0 with the verified signed artifact from release run 39453494007."
+        required: false
+        type: boolean
+        default: false
   pull_request:
     types:
       - closed
@@ -17,17 +22,18 @@ on:
       - "v*"
 
 concurrency:
-  group: ${{ github.event_name == 'push' && format('release-{0}', github.ref_name) || 'release-prepare' }}
+  group: ${{ github.event_name == 'push' && format('release-{0}', github.ref_name) || (github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release && 'release-v0.4.0') || 'release-prepare' }}
   cancel-in-progress: false
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   prepare-tag:
     name: Prepare Release Tag
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release != true) ||
       (github.event_name == 'pull_request' &&
         github.event.pull_request.merged == true &&
         contains(github.event.pull_request.labels.*.name, 'autorelease'))
@@ -94,7 +100,11 @@ jobs:
 
   signed-extension:
     name: Signed Extension
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.continue_signed_0_4_0_release == true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -102,7 +112,25 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - run: bun run extension:sign
+      - name: Download existing signed extension
+        if: github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true
+        uses: actions/download-artifact@v8
+        with:
+          name: firefox-cli-signed-extension
+          path: dist/extension-artifacts
+          run-id: 39453494007
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build extension for signed-artifact verification
+        if: github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true
+        run: bun run extension:build
+      - name: Verify reused signed extension
+        if: github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true
+        run: bun scripts/continue-signed-release.ts
+        env:
+          FIREFOX_CLI_RELEASE_TAG: v0.4.0
+      - name: Sign extension
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: bun run extension:sign
         env:
           WEB_EXT_JWT_ISSUER: ${{ secrets.WEB_EXT_JWT_ISSUER }}
           WEB_EXT_JWT_SECRET: ${{ secrets.WEB_EXT_JWT_SECRET }}
@@ -114,9 +142,15 @@ jobs:
 
   package:
     name: Package (${{ matrix.os }})
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.continue_signed_0_4_0_release == true)
     needs:
       - signed-extension
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true && 'v0.4.0' || github.ref_name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -127,6 +161,8 @@ jobs:
           - windows-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
@@ -139,11 +175,11 @@ jobs:
       - run: bun run release:check:signed
       - name: Archive package
         if: runner.os != 'Windows'
-        run: tar -czf "firefox-cli-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.tar.gz" -C dist package extension-artifacts
+        run: tar -czf "firefox-cli-${RELEASE_TAG}-${{ runner.os }}-${{ runner.arch }}.tar.gz" -C dist package extension-artifacts
       - name: Archive package
         if: runner.os == 'Windows'
         shell: pwsh
-        run: Compress-Archive -Path dist/package,dist/extension-artifacts -DestinationPath "firefox-cli-${{ github.ref_name }}-${{ runner.os }}-${{ runner.arch }}.zip"
+        run: Compress-Archive -Path dist/package,dist/extension-artifacts -DestinationPath "firefox-cli-${env:RELEASE_TAG}-${{ runner.os }}-${{ runner.arch }}.zip"
       - uses: actions/upload-artifact@v7
         with:
           name: firefox-cli-package-${{ runner.os }}-${{ runner.arch }}
@@ -153,13 +189,20 @@ jobs:
 
   github-release:
     name: GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.continue_signed_0_4_0_release == true)
     needs:
       - package
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true && 'v0.4.0' || github.ref_name }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
@@ -173,19 +216,25 @@ jobs:
         with:
           artifactErrorsFailBuild: true
           artifacts: "release-artifacts/**/*.tar.gz,release-artifacts/**/*.zip,release-artifacts/signed-extension/*.xpi,release-artifacts/signed-extension/*.xpi.provenance.json"
-          bodyFile: release-notes/${{ github.ref_name }}.md
+          bodyFile: release-notes/${{ env.RELEASE_TAG }}.md
           draft: true
           prerelease: false
-          tag: ${{ github.ref_name }}
+          tag: ${{ env.RELEASE_TAG }}
         env:
           GITHUB_TOKEN: ${{ secrets.OPENSOURCE_PAT }}
 
   npm-publish:
     name: Publish npm
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.continue_signed_0_4_0_release == true)
     needs:
       - package
       - github-release
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true && 'v0.4.0' || github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -193,6 +242,8 @@ jobs:
     environment: npm
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.RELEASE_TAG }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
@@ -211,7 +262,11 @@ jobs:
 
   publish-github-release:
     name: Publish GitHub Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.continue_signed_0_4_0_release == true)
     needs:
       - npm-publish
     runs-on: ubuntu-latest
@@ -220,5 +275,5 @@ jobs:
     steps:
       - run: gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease=false
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.continue_signed_0_4_0_release == true && 'v0.4.0' || github.ref_name }}
           GH_TOKEN: ${{ secrets.OPENSOURCE_PAT }}
