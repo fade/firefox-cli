@@ -24,18 +24,32 @@ describe("runCli doctor manifest read failures", () => {
 
     expect(result.exitCode).toBe(1);
     expect(format === "json" ? result.stderr : result.stdout).toBe("");
-    expect(errorOutput).toContain(manifestPath);
     expect(errorOutput).toContain("EISDIR");
     expect(errorOutput).toContain(fix ? "firefox-cli doctor --fix" : "firefox-cli doctor");
     if (format === "json") {
       const payload: unknown = JSON.parse(result.stdout);
-      expect(payload).toBeTruthy();
-      expect(result.stdout).toContain('"step": "manifest-read"');
-      expect(result.stdout).toContain('"filesystemCode": "EISDIR"');
-      expect(result.stdout).toContain('"cause": "EISDIR:');
+      if (!isRecord(payload) || !isRecord(payload.error)) {
+        throw new Error("Expected a structured doctor manifest error.");
+      }
+      const doctorError = payload.error;
+      if (typeof doctorError.cause !== "string") {
+        throw new Error("Expected the doctor error to preserve its filesystem cause.");
+      }
+      expect(doctorError).toMatchObject({
+        step: "manifest-read",
+        manifestPath,
+        filesystemCode: "EISDIR",
+      });
+      expect(doctorError.cause).toContain("EISDIR");
     } else {
+      expect(errorOutput).toContain(manifestPath);
+      expect(errorOutput).toContain("Cause: EISDIR:");
       expect(errorOutput).toContain("Next action:");
     }
     await expect(readFile(preservedFile, "utf8")).resolves.toBe("keep");
   });
 });
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
