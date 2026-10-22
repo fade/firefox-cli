@@ -1,5 +1,7 @@
-import { writeNativeMessagingManifest, type NativeMessagingManifestPlan, type NativeMessagingManifestRegistration } from "./native-manifest.js";
+import { type NativeMessagingManifestPlan, type NativeMessagingManifestRegistration, writeNativeMessagingManifest } from "./native-manifest.js";
 import { WindowsNativeMessagingRegistryError, windowsNativeMessagingRegistry } from "./windows-native-messaging-registry.js";
+
+const WINDOWS_ACCESS_DENIED_HRESULT = -2147024891;
 
 export type WindowsNativeMessagingRegistration = Extract<NativeMessagingManifestRegistration, { readonly kind: "windows-registry" }>;
 
@@ -39,7 +41,7 @@ export class NativeMessagingRegistrationError extends Error {
     this.stdout = options.stdout;
     this.stderr = options.stderr;
     this.hresult = options.hresult;
-    this.accessDenied = options.hresult === -2147024891;
+    this.accessDenied = options.hresult === WINDOWS_ACCESS_DENIED_HRESULT;
     this.manifestPath = options.manifestPath;
   }
 }

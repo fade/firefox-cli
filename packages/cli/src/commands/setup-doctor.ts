@@ -6,7 +6,9 @@ import { ok } from "../result.js";
 import { createNoopRequest, sendOrUnavailable } from "../transport.js";
 import type { CliDependencies, CliResult } from "../types.js";
 import {
+  formatNativeHostManifestReadFailure,
   formatNativeHostRegistration,
+  NativeHostManifestReadError,
   nativeHostRegistrationFailure,
   readWindowsNativeHostRegistration,
   registerNativeHost,
@@ -105,7 +107,7 @@ async function resolveDoctorSetupStatus(
   fix: boolean,
   json: boolean,
 ): Promise<DoctorSetupStatusResult> {
-  const current = await readDoctorSetupStatus(plan, dependencies, json);
+  const current = await readDoctorSetupStatus(plan, dependencies, json, fix);
   if (!current.ok || !fix || !requiresDoctorRepair(current.status)) {
     return current;
   }
@@ -114,15 +116,28 @@ async function resolveDoctorSetupStatus(
   if (failure !== undefined) {
     return { ok: false, result: failure };
   }
-  return readDoctorSetupStatus(plan, dependencies, json);
+  return readDoctorSetupStatus(plan, dependencies, json, fix);
 }
 
 async function readDoctorSetupStatus(
   plan: Awaited<ReturnType<typeof createManifestPlan>>,
   dependencies: CliDependencies,
   json: boolean,
+  fix: boolean,
 ): Promise<DoctorSetupStatusResult> {
-  const nativeHostManifest = await readNativeHostManifestStatus(plan);
+  let nativeHostManifest: Awaited<ReturnType<typeof readNativeHostManifestStatus>>;
+  try {
+    nativeHostManifest = await readNativeHostManifestStatus(plan);
+  } catch (failure) {
+    if (!(failure instanceof NativeHostManifestReadError)) {
+      throw failure;
+    }
+    return {
+      ok: false,
+      result: formatNativeHostManifestReadFailure(failure, json, fix),
+    };
+  }
+
   try {
     const nativeHostRegistration = await readWindowsNativeHostRegistration(plan, dependencies);
     return {
@@ -255,7 +270,7 @@ async function readNativeHostManifestStatus(plan: Awaited<ReturnType<typeof crea
         nextAction: "Run `firefox-cli setup`.",
       };
     }
-    throw error;
+    throw new NativeHostManifestReadError(plan.manifestPath, error);
   }
 
   let installed: typeof plan.manifest;

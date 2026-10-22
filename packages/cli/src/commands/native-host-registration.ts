@@ -1,8 +1,8 @@
 import {
+  type NativeMessagingManifestPlan,
   NativeMessagingRegistrationError,
   readWindowsNativeMessagingHostRegistration,
   registerNativeMessagingHost,
-  type NativeMessagingManifestPlan,
 } from "@firefox-cli/native-host";
 import { error } from "../result.js";
 import type { CliDependencies, CliResult } from "../types.js";
@@ -112,6 +112,50 @@ export function nativeHostRegistrationFailure(failure: unknown, retryCommand: st
   return json ? formatNativeHostRegistrationFailureJson(details) : formatNativeHostRegistrationFailureText(details);
 }
 
+export class NativeHostManifestReadError extends Error {
+  constructor(
+    readonly manifestPath: string,
+    cause: unknown,
+  ) {
+    super("Failed while reading the native messaging manifest.", { cause });
+  }
+}
+
+export function formatNativeHostManifestReadFailure(failure: NativeHostManifestReadError, json: boolean, fix: boolean): CliResult {
+  const cause = failure.cause instanceof Error ? failure.cause.message : "Unknown filesystem error.";
+  const filesystemCode = getFilesystemErrorCode(failure.cause);
+  const command = fix ? "firefox-cli doctor --fix" : "firefox-cli doctor";
+  const details = {
+    step: "manifest-read",
+    message: failure.message,
+    manifestPath: failure.manifestPath,
+    cause,
+    ...(filesystemCode === undefined ? {} : { filesystemCode }),
+    nextAction: `Ensure the manifest path names a readable file, resolve the reported filesystem error, then retry \`${command}\`.`,
+  };
+
+  if (json) {
+    return {
+      exitCode: 1,
+      stdout: `${JSON.stringify({ error: details }, null, 2)}\n`,
+      stderr: "",
+    };
+  }
+
+  return error(
+    [
+      details.message,
+      `Path: ${details.manifestPath}`,
+      `Cause: ${details.cause}`,
+      details.filesystemCode === undefined ? undefined : `Filesystem error code: ${details.filesystemCode}`,
+      `Next action: ${details.nextAction}`,
+      "",
+    ]
+      .filter((line): line is string => line !== undefined)
+      .join("\n"),
+  );
+}
+
 function createNativeHostRegistrationFailureDetails(failure: NativeMessagingRegistrationError, retryCommand: string): NativeHostRegistrationFailureDetails {
   return {
     step: failure.step,
@@ -151,6 +195,13 @@ function formatNativeHostRegistrationFailureText(details: NativeHostRegistration
 function nonEmptyTrimmed(value: string | undefined): string | undefined {
   const trimmed = value?.trim() ?? "";
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function getFilesystemErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error) || typeof error.code !== "string") {
+    return undefined;
+  }
+  return error.code;
 }
 
 function deepestCauseMessage(error: Error): string | undefined {
