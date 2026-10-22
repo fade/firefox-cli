@@ -1,10 +1,10 @@
 import { access, mkdir, readFile } from "node:fs/promises";
-import { join, win32 } from "node:path";
+import { join, posix, win32 } from "node:path";
 import {
   NATIVE_HOST_NAME,
-  WindowsNativeMessagingRegistryError,
   type WindowsNativeMessagingRegistration,
   type WindowsNativeMessagingRegistry,
+  WindowsNativeMessagingRegistryError,
 } from "@firefox-cli/native-host";
 import { createTempDir } from "@firefox-cli/test-support";
 import { describe, expect, it } from "vitest";
@@ -130,7 +130,7 @@ describe("runCli setup registration", () => {
     });
     expect(registry.value).toBe(manifestPath);
     expect(registry.writeCalls).toBe(2);
-    await expect(readFile(join(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
+    await expect(readFile(windowsManifestFilesystemPath(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
   });
 
   it("keeps plain and targeted JSON dry runs free of Windows writes", async () => {
@@ -152,7 +152,7 @@ describe("runCli setup registration", () => {
       dryRun: true,
     });
     expect(registry.writeCalls).toBe(0);
-    await expect(access(join(temporaryDirectory, manifestPath))).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(windowsManifestFilesystemPath(temporaryDirectory, manifestPath))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("reports missing Windows registration even when the manifest is correct", async () => {
@@ -188,7 +188,7 @@ describe("runCli setup registration", () => {
     expect(results.text.stdout).toContain("Registration next action: Run `firefox-cli setup` or `firefox-cli doctor --fix`.");
     expect(registry.readCalls).toBe(2);
     expect(registry.writeCalls).toBe(0);
-    await expect(readFile(join(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
+    await expect(readFile(windowsManifestFilesystemPath(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
   });
 
   it("repairs missing Windows registration even when the manifest is already correct", async () => {
@@ -295,7 +295,7 @@ describe("runCli setup registration", () => {
     expect(failure.stdout).toContain("elevated terminal");
     expect(registry.value).toBeUndefined();
     expect(registry.writeCalls).toBe(1);
-    await expect(readFile(join(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
+    await expect(readFile(windowsManifestFilesystemPath(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
   });
 
   it("returns actionable setup errors when Windows denies registry registration", async () => {
@@ -322,7 +322,11 @@ describe("runCli setup registration", () => {
 });
 
 function macOSManifestPath(homeDir: string): string {
-  return join(homeDir, "Library/Application Support/Mozilla/NativeMessagingHosts", `${NATIVE_HOST_NAME}.json`);
+  return posix.join(homeDir, "Library/Application Support/Mozilla/NativeMessagingHosts", `${NATIVE_HOST_NAME}.json`);
+}
+
+function windowsManifestFilesystemPath(temporaryDirectory: string, manifestPath: string): string {
+  return process.platform === "win32" ? manifestPath : join(temporaryDirectory, manifestPath);
 }
 
 class FakeWindowsNativeMessagingRegistry implements WindowsNativeMessagingRegistry {

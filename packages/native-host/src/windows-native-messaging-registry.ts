@@ -13,6 +13,8 @@ const responseSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(false), exceptions: z.array(exceptionSchema).min(1) }).strict(),
 ]);
 
+const powerShellTimeoutMs = 30_000;
+
 const powerShellCommand = [
   "$ErrorActionPreference = 'Stop'",
   "$utf8 = New-Object System.Text.UTF8Encoding($false)",
@@ -197,9 +199,26 @@ async function runPowerShellProcess(input: string): Promise<WindowsNativeMessagi
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk;
     });
-    child.once("error", reject);
-    child.stdin.once("error", reject);
+    const timeout = setTimeout(() => {
+      child.kill();
+      reject(
+        new WindowsNativeMessagingRegistryError({
+          diagnostic: `Windows PowerShell did not finish the registry operation within ${String(powerShellTimeoutMs / 1000)} seconds.`,
+          stdout,
+          stderr,
+        }),
+      );
+    }, powerShellTimeoutMs);
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.stdin.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
     child.once("close", (code) => {
+      clearTimeout(timeout);
       resolve({
         exitCode: code ?? 1,
         stdout,
