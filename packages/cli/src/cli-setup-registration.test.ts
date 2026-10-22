@@ -317,7 +317,7 @@ describe("runCli setup registration", () => {
     expect(output.stderr).toContain("Windows PowerShell stderr: Registry write failed.");
     expect(output.stderr).toContain("elevated terminal");
     expect(output.stderr).toContain("firefox-cli setup");
-    await expect(readFile(join(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
+    await expect(readFile(windowsManifestFilesystemPath(temporaryDirectory, manifestPath), "utf8")).resolves.toContain("firefox-cli");
   });
 });
 
