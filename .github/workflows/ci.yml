@@ -49,6 +49,9 @@ jobs:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: bun run release:check:local
+      - name: Verify Windows native-host registration
+        if: runner.os == 'Windows'
+        run: bun run test:windows-native-registration
       - uses: actions/upload-artifact@v7
         with:
           name: firefox-cli-package-${{ runner.os }}-${{ runner.arch }}
